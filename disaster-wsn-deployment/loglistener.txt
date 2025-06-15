@@ -1,0 +1,799 @@
+00:00.073	ID:8	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.073	ID:8	[INFO: Main      ] - Routing: RPL Lite
+00:00.073	ID:8	[INFO: Main      ] - Net: sicslowpan
+00:00.073	ID:8	[INFO: Main      ] - MAC: CSMA
+00:00.073	ID:8	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.073	ID:8	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.073	ID:8	[INFO: Main      ] Node ID: 8
+00:00.073	ID:8	[INFO: Main      ] Link-layer address: 0008.0008.0008.0008
+00:00.073	ID:8	[INFO: Main      ] Tentative link-local IPv6 address: fe80::208:8:8:8
+00:00.073	ID:8	[INFO: SensorNode] Sensor initialized at random position (277, 483)
+00:00.073	ID:8	[INFO: SensorNode] Sensor Node 0 initialized at (277, 483)
+00:00.190	ID:11	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.190	ID:11	[INFO: Main      ] - Routing: RPL Lite
+00:00.190	ID:11	[INFO: Main      ] - Net: sicslowpan
+00:00.190	ID:11	[INFO: Main      ] - MAC: CSMA
+00:00.190	ID:11	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.190	ID:11	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.190	ID:11	[INFO: Main      ] Node ID: 11
+00:00.190	ID:11	[INFO: Main      ] Link-layer address: 000b.000b.000b.000b
+00:00.190	ID:11	[INFO: Main      ] Tentative link-local IPv6 address: fe80::20b:b:b:b
+00:00.190	ID:11	[INFO: SensorNode] Sensor initialized at random position (609, 123)
+00:00.190	ID:11	[INFO: SensorNode] Sensor Node 0 initialized at (609, 123)
+00:00.236	ID:2	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.236	ID:2	[INFO: Main      ] - Routing: RPL Lite
+00:00.236	ID:2	[INFO: Main      ] - Net: sicslowpan
+00:00.236	ID:2	[INFO: Main      ] - MAC: CSMA
+00:00.236	ID:2	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.236	ID:2	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.236	ID:2	[INFO: Main      ] Node ID: 2
+00:00.236	ID:2	[INFO: Main      ] Link-layer address: 0002.0002.0002.0002
+00:00.236	ID:2	[INFO: Main      ] Tentative link-local IPv6 address: fe80::202:2:2:2
+00:00.236	ID:2	[INFO: MobileRobot] Mobile Robot 1 initialized with 10 sensors in stock
+00:00.250	ID:6	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.250	ID:6	[INFO: Main      ] - Routing: RPL Lite
+00:00.250	ID:6	[INFO: Main      ] - Net: sicslowpan
+00:00.250	ID:6	[INFO: Main      ] - MAC: CSMA
+00:00.250	ID:6	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.250	ID:6	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.250	ID:6	[INFO: Main      ] Node ID: 6
+00:00.250	ID:6	[INFO: Main      ] Link-layer address: 0006.0006.0006.0006
+00:00.250	ID:6	[INFO: Main      ] Tentative link-local IPv6 address: fe80::206:6:6:6
+00:00.250	ID:6	[INFO: SensorNode] Sensor initialized at random position (377, 929)
+00:00.250	ID:6	[INFO: SensorNode] Sensor Node 0 initialized at (377, 929)
+00:00.348	ID:4	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.348	ID:4	[INFO: Main      ] - Routing: RPL Lite
+00:00.348	ID:4	[INFO: Main      ] - Net: sicslowpan
+00:00.348	ID:4	[INFO: Main      ] - MAC: CSMA
+00:00.348	ID:4	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.348	ID:4	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.348	ID:4	[INFO: Main      ] Node ID: 4
+00:00.348	ID:4	[INFO: Main      ] Link-layer address: 0004.0004.0004.0004
+00:00.348	ID:4	[INFO: Main      ] Tentative link-local IPv6 address: fe80::204:4:4:4
+00:00.348	ID:4	[INFO: SensorNode] Sensor initialized at random position (912, 556)
+00:00.348	ID:4	[INFO: SensorNode] Sensor Node 0 initialized at (912, 556)
+00:00.382	ID:1	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.382	ID:1	[INFO: Main      ] - Routing: RPL Lite
+00:00.382	ID:1	[INFO: Main      ] - Net: sicslowpan
+00:00.382	ID:1	[INFO: Main      ] - MAC: CSMA
+00:00.382	ID:1	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.382	ID:1	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.382	ID:1	[INFO: Main      ] Node ID: 1
+00:00.382	ID:1	[INFO: Main      ] Link-layer address: 0001.0001.0001.0001
+00:00.382	ID:1	[INFO: Main      ] Tentative link-local IPv6 address: fe80::201:1:1:1
+00:00.382	ID:1	[INFO: BaseStation] Initialized 20 location areas
+00:00.382	ID:1	[INFO: BaseStation] Assigned Robot 0 to LA 1 at (50, 50)
+00:00.383	ID:1	[INFO: BaseStation] Deployed Robot 0 to LA 1 (first LA as per APP_I)
+00:00.383	ID:1	[INFO: BaseStation] Assigned Robot 1 to LA 20 at (950, 150)
+00:00.384	ID:1	[INFO: BaseStation] Deployed Robot 1 to LA 20 (last LA as per APP_I)
+00:00.384	ID:1	[INFO: BaseStation] Initial deployment complete: 2 robots deployed as per APP_I
+00:00.384	ID:1	[INFO: BaseStation] Base Station initialized. Managing 20 location areas.
+00:00.402	ID:7	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.402	ID:7	[INFO: Main      ] - Routing: RPL Lite
+00:00.402	ID:7	[INFO: Main      ] - Net: sicslowpan
+00:00.402	ID:7	[INFO: Main      ] - MAC: CSMA
+00:00.402	ID:7	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.402	ID:7	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.402	ID:7	[INFO: Main      ] Node ID: 7
+00:00.402	ID:7	[INFO: Main      ] Link-layer address: 0007.0007.0007.0007
+00:00.402	ID:7	[INFO: Main      ] Tentative link-local IPv6 address: fe80::207:7:7:7
+00:00.402	ID:7	[INFO: SensorNode] Sensor initialized at random position (720, 476)
+00:00.402	ID:7	[INFO: SensorNode] Sensor Node 0 initialized at (720, 476)
+00:00.450	ID:14	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.450	ID:14	[INFO: Main      ] - Routing: RPL Lite
+00:00.450	ID:14	[INFO: Main      ] - Net: sicslowpan
+00:00.450	ID:14	[INFO: Main      ] - MAC: CSMA
+00:00.450	ID:14	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.450	ID:14	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.450	ID:14	[INFO: Main      ] Node ID: 14
+00:00.450	ID:14	[INFO: Main      ] Link-layer address: 000e.000e.000e.000e
+00:00.450	ID:14	[INFO: Main      ] Tentative link-local IPv6 address: fe80::20e:e:e:e
+00:00.450	ID:14	[INFO: SensorNode] Sensor initialized at random position (723, 763)
+00:00.450	ID:14	[INFO: SensorNode] Sensor Node 0 initialized at (723, 763)
+00:00.462	ID:15	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.462	ID:15	[INFO: Main      ] - Routing: RPL Lite
+00:00.462	ID:15	[INFO: Main      ] - Net: sicslowpan
+00:00.462	ID:15	[INFO: Main      ] - MAC: CSMA
+00:00.462	ID:15	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.462	ID:15	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.462	ID:15	[INFO: Main      ] Node ID: 15
+00:00.462	ID:15	[INFO: Main      ] Link-layer address: 000f.000f.000f.000f
+00:00.462	ID:15	[INFO: Main      ] Tentative link-local IPv6 address: fe80::20f:f:f:f
+00:00.462	ID:15	[INFO: SensorNode] Sensor initialized at random position (527, 525)
+00:00.462	ID:15	[INFO: SensorNode] Sensor Node 0 initialized at (527, 525)
+00:00.556	ID:10	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.556	ID:10	[INFO: Main      ] - Routing: RPL Lite
+00:00.556	ID:10	[INFO: Main      ] - Net: sicslowpan
+00:00.556	ID:10	[INFO: Main      ] - MAC: CSMA
+00:00.556	ID:10	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.556	ID:10	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.556	ID:10	[INFO: Main      ] Node ID: 10
+00:00.556	ID:10	[INFO: Main      ] Link-layer address: 000a.000a.000a.000a
+00:00.556	ID:10	[INFO: Main      ] Tentative link-local IPv6 address: fe80::20a:a:a:a
+00:00.556	ID:10	[INFO: SensorNode] Sensor initialized at random position (219, 187)
+00:00.556	ID:10	[INFO: SensorNode] Sensor Node 0 initialized at (219, 187)
+00:00.594	ID:12	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.594	ID:12	[INFO: Main      ] - Routing: RPL Lite
+00:00.594	ID:12	[INFO: Main      ] - Net: sicslowpan
+00:00.594	ID:12	[INFO: Main      ] - MAC: CSMA
+00:00.594	ID:12	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.594	ID:12	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.594	ID:12	[INFO: Main      ] Node ID: 12
+00:00.594	ID:12	[INFO: Main      ] Link-layer address: 000c.000c.000c.000c
+00:00.594	ID:12	[INFO: Main      ] Tentative link-local IPv6 address: fe80::20c:c:c:c
+00:00.594	ID:12	[INFO: SensorNode] Sensor initialized at random position (3, 833)
+00:00.594	ID:12	[INFO: SensorNode] Sensor Node 0 initialized at (3, 833)
+00:00.708	ID:9	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.708	ID:9	[INFO: Main      ] - Routing: RPL Lite
+00:00.708	ID:9	[INFO: Main      ] - Net: sicslowpan
+00:00.708	ID:9	[INFO: Main      ] - MAC: CSMA
+00:00.708	ID:9	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.708	ID:9	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.708	ID:9	[INFO: Main      ] Node ID: 9
+00:00.708	ID:9	[INFO: Main      ] Link-layer address: 0009.0009.0009.0009
+00:00.708	ID:9	[INFO: Main      ] Tentative link-local IPv6 address: fe80::209:9:9:9
+00:00.708	ID:9	[INFO: SensorNode] Sensor initialized at random position (517, 571)
+00:00.708	ID:9	[INFO: SensorNode] Sensor Node 0 initialized at (517, 571)
+00:00.715	ID:5	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.715	ID:5	[INFO: Main      ] - Routing: RPL Lite
+00:00.715	ID:5	[INFO: Main      ] - Net: sicslowpan
+00:00.715	ID:5	[INFO: Main      ] - MAC: CSMA
+00:00.715	ID:5	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.715	ID:5	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.715	ID:5	[INFO: Main      ] Node ID: 5
+00:00.715	ID:5	[INFO: Main      ] Link-layer address: 0005.0005.0005.0005
+00:00.715	ID:5	[INFO: Main      ] Tentative link-local IPv6 address: fe80::205:5:5:5
+00:00.715	ID:5	[INFO: SensorNode] Sensor initialized at random position (298, 792)
+00:00.715	ID:5	[INFO: SensorNode] Sensor Node 0 initialized at (298, 792)
+00:00.884	ID:13	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.884	ID:13	[INFO: Main      ] - Routing: RPL Lite
+00:00.884	ID:13	[INFO: Main      ] - Net: sicslowpan
+00:00.884	ID:13	[INFO: Main      ] - MAC: CSMA
+00:00.884	ID:13	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.884	ID:13	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.884	ID:13	[INFO: Main      ] Node ID: 13
+00:00.884	ID:13	[INFO: Main      ] Link-layer address: 000d.000d.000d.000d
+00:00.884	ID:13	[INFO: Main      ] Tentative link-local IPv6 address: fe80::20d:d:d:d
+00:00.884	ID:13	[INFO: SensorNode] Sensor initialized at random position (582, 113)
+00:00.884	ID:13	[INFO: SensorNode] Sensor Node 0 initialized at (582, 113)
+00:00.899	ID:3	[INFO: Main      ] Starting Contiki-NG-develop/v5.0-47-gd8e99b9d5-dirty
+00:00.899	ID:3	[INFO: Main      ] - Routing: RPL Lite
+00:00.899	ID:3	[INFO: Main      ] - Net: sicslowpan
+00:00.899	ID:3	[INFO: Main      ] - MAC: CSMA
+00:00.899	ID:3	[INFO: Main      ] - 802.15.4 PANID: 0xabcd
+00:00.899	ID:3	[INFO: Main      ] - 802.15.4 Default channel: 26
+00:00.899	ID:3	[INFO: Main      ] Node ID: 3
+00:00.899	ID:3	[INFO: Main      ] Link-layer address: 0003.0003.0003.0003
+00:00.899	ID:3	[INFO: Main      ] Tentative link-local IPv6 address: fe80::203:3:3:3
+00:00.899	ID:3	[INFO: MobileRobot] Mobile Robot 1 initialized with 10 sensors in stock
+00:10.348	ID:4	[INFO: SensorNode] Switched to ACTIVE mode
+00:10.450	ID:14	[INFO: SensorNode] Switched to ACTIVE mode
+00:10.462	ID:15	[INFO: SensorNode] Switched to ACTIVE mode
+00:10.556	ID:10	[INFO: SensorNode] Switched to ACTIVE mode
+00:10.884	ID:13	[INFO: SensorNode] Switched to ACTIVE mode
+00:20.073	ID:8	[INFO: SensorNode] Switched to ACTIVE mode
+00:20.250	ID:6	[INFO: SensorNode] Switched to ACTIVE mode
+00:20.402	ID:7	[INFO: SensorNode] Switched to ACTIVE mode
+00:20.556	ID:10	[INFO: SensorNode] Switched to IDLE mode
+00:20.715	ID:5	[INFO: SensorNode] Switched to ACTIVE mode
+00:30.073	ID:8	[INFO: SensorNode] Performed sensing operation at (277, 483)
+00:30.190	ID:11	[INFO: SensorNode] Switched to ACTIVE mode
+00:30.190	ID:11	[INFO: SensorNode] Performed sensing operation at (609, 123)
+00:30.250	ID:6	[INFO: SensorNode] Performed sensing operation at (377, 929)
+00:30.348	ID:4	[INFO: SensorNode] Performed sensing operation at (912, 556)
+00:30.402	ID:7	[INFO: SensorNode] Performed sensing operation at (720, 476)
+00:30.450	ID:14	[INFO: SensorNode] Switched to IDLE mode
+00:30.462	ID:15	[INFO: SensorNode] Performed sensing operation at (527, 525)
+00:30.556	ID:10	[INFO: SensorNode] Switched to ACTIVE mode
+00:30.556	ID:10	[INFO: SensorNode] Performed sensing operation at (219, 187)
+00:30.715	ID:5	[INFO: SensorNode] Performed sensing operation at (298, 792)
+00:30.884	ID:13	[INFO: SensorNode] Performed sensing operation at (582, 113)
+00:40.190	ID:11	[INFO: SensorNode] Switched to IDLE mode
+00:40.450	ID:14	[INFO: SensorNode] Switched to ACTIVE mode
+00:40.556	ID:10	[INFO: SensorNode] Switched to IDLE mode
+00:40.715	ID:5	[INFO: SensorNode] Switched to IDLE mode
+00:40.884	ID:13	[INFO: SensorNode] Switched to IDLE mode
+00:50.250	ID:6	[INFO: SensorNode] Switched to IDLE mode
+00:50.348	ID:4	[INFO: SensorNode] Switched to IDLE mode
+00:50.450	ID:14	[INFO: SensorNode] Switched to IDLE mode
+00:50.708	ID:9	[INFO: SensorNode] Switched to ACTIVE mode
+01:00.073	ID:8	[INFO: SensorNode] Switched to IDLE mode
+01:00.073	ID:8	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.073	ID:8	[INFO: SensorNode] Sensor ID: 0
+01:00.073	ID:8	[INFO: SensorNode] Position: (277, 483)
+01:00.073	ID:8	[INFO: SensorNode] Mode: IDLE
+01:00.073	ID:8	[INFO: SensorNode] Deployed by: Random
+01:00.073	ID:8	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.073	ID:8	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.073	ID:8	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.073	ID:8	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.073	ID:8	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.073	ID:8	[INFO: SensorNode] ============================
+01:00.190	ID:11	[INFO: SensorNode] Switched to ACTIVE mode
+01:00.190	ID:11	[INFO: SensorNode] Performed sensing operation at (609, 123)
+01:00.190	ID:11	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.190	ID:11	[INFO: SensorNode] Sensor ID: 0
+01:00.190	ID:11	[INFO: SensorNode] Position: (609, 123)
+01:00.190	ID:11	[INFO: SensorNode] Mode: ACTIVE
+01:00.190	ID:11	[INFO: SensorNode] Deployed by: Random
+01:00.190	ID:11	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.190	ID:11	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.190	ID:11	[INFO: SensorNode] Sensing energy: 2.500000 J
+01:00.190	ID:11	[INFO: SensorNode] Processing energy: 0.000030 J
+01:00.190	ID:11	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.190	ID:11	[INFO: SensorNode] Total energy: 3.700030 J
+01:00.190	ID:11	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.190	ID:11	[INFO: SensorNode] ============================
+01:00.236	ID:2	[INFO: MobileRobot] === ROBOT ENERGY REPORT ===
+01:00.236	ID:2	[INFO: MobileRobot] Robot ID: 1
+01:00.236	ID:2	[INFO: MobileRobot] Position: (500, 500)
+01:00.236	ID:2	[INFO: MobileRobot] Phase: 0
+01:00.236	ID:2	[INFO: MobileRobot] Assigned LA: 0
+01:00.236	ID:2	[INFO: MobileRobot] Sensor stock: 10
+01:00.236	ID:2	[INFO: MobileRobot] Elapsed time: 60.00 seconds
+01:00.236	ID:2	[INFO: MobileRobot] Baseline energy: 1.800000 J
+01:00.236	ID:2	[INFO: MobileRobot] Radio energy: 0.000000 J
+01:00.236	ID:2	[INFO: MobileRobot] Mobility energy: 0.000000 J
+01:00.236	ID:2	[INFO: MobileRobot] Total energy: 1.800000 J
+01:00.236	ID:2	[INFO: MobileRobot] Operations - TX: 0, RX: 0, Moves: 0, Processing: 0
+01:00.236	ID:2	[INFO: MobileRobot] ==========================
+01:00.250	ID:6	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.250	ID:6	[INFO: SensorNode] Sensor ID: 0
+01:00.250	ID:6	[INFO: SensorNode] Position: (377, 929)
+01:00.250	ID:6	[INFO: SensorNode] Mode: IDLE
+01:00.250	ID:6	[INFO: SensorNode] Deployed by: Random
+01:00.250	ID:6	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.250	ID:6	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.250	ID:6	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.250	ID:6	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.250	ID:6	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.250	ID:6	[INFO: SensorNode] ============================
+01:00.348	ID:4	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.348	ID:4	[INFO: SensorNode] Sensor ID: 0
+01:00.348	ID:4	[INFO: SensorNode] Position: (912, 556)
+01:00.348	ID:4	[INFO: SensorNode] Mode: IDLE
+01:00.348	ID:4	[INFO: SensorNode] Deployed by: Random
+01:00.348	ID:4	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.348	ID:4	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.348	ID:4	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.348	ID:4	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.348	ID:4	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.348	ID:4	[INFO: SensorNode] ============================
+01:00.384	ID:1	[INFO: BaseStation] === ENERGY & COVERAGE REPORT ===
+01:00.384	ID:1	[INFO: BaseStation] Elapsed time: 60.00 seconds
+01:00.384	ID:1	[INFO: BaseStation] Area coverage: 0.00%
+01:00.384	ID:1	[INFO: BaseStation] Processing energy: 0.000075 J
+01:00.384	ID:1	[INFO: BaseStation] Radio energy: 0.000100 J
+01:00.384	ID:1	[INFO: BaseStation] Total base station energy: 0.000175 J
+01:00.384	ID:1	[INFO: BaseStation] ==============================
+01:00.402	ID:7	[INFO: SensorNode] Switched to IDLE mode
+01:00.402	ID:7	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.402	ID:7	[INFO: SensorNode] Sensor ID: 0
+01:00.402	ID:7	[INFO: SensorNode] Position: (720, 476)
+01:00.402	ID:7	[INFO: SensorNode] Mode: IDLE
+01:00.402	ID:7	[INFO: SensorNode] Deployed by: Random
+01:00.402	ID:7	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.402	ID:7	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.402	ID:7	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.402	ID:7	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.402	ID:7	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.402	ID:7	[INFO: SensorNode] ============================
+01:00.450	ID:14	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.450	ID:14	[INFO: SensorNode] Sensor ID: 0
+01:00.450	ID:14	[INFO: SensorNode] Position: (723, 763)
+01:00.450	ID:14	[INFO: SensorNode] Mode: IDLE
+01:00.450	ID:14	[INFO: SensorNode] Deployed by: Random
+01:00.450	ID:14	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.450	ID:14	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.450	ID:14	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.450	ID:14	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.450	ID:14	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.450	ID:14	[INFO: SensorNode] ============================
+01:00.462	ID:15	[INFO: SensorNode] Performed sensing operation at (527, 525)
+01:00.462	ID:15	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.462	ID:15	[INFO: SensorNode] Sensor ID: 0
+01:00.462	ID:15	[INFO: SensorNode] Position: (527, 525)
+01:00.462	ID:15	[INFO: SensorNode] Mode: ACTIVE
+01:00.462	ID:15	[INFO: SensorNode] Deployed by: Random
+01:00.462	ID:15	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.462	ID:15	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.462	ID:15	[INFO: SensorNode] Sensing energy: 2.500000 J
+01:00.462	ID:15	[INFO: SensorNode] Processing energy: 0.000030 J
+01:00.462	ID:15	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.462	ID:15	[INFO: SensorNode] Total energy: 3.700030 J
+01:00.462	ID:15	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.462	ID:15	[INFO: SensorNode] ============================
+01:00.556	ID:10	[INFO: SensorNode] Switched to ACTIVE mode
+01:00.556	ID:10	[INFO: SensorNode] Performed sensing operation at (219, 187)
+01:00.556	ID:10	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.556	ID:10	[INFO: SensorNode] Sensor ID: 0
+01:00.556	ID:10	[INFO: SensorNode] Position: (219, 187)
+01:00.556	ID:10	[INFO: SensorNode] Mode: ACTIVE
+01:00.556	ID:10	[INFO: SensorNode] Deployed by: Random
+01:00.556	ID:10	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.556	ID:10	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.556	ID:10	[INFO: SensorNode] Sensing energy: 2.500000 J
+01:00.556	ID:10	[INFO: SensorNode] Processing energy: 0.000030 J
+01:00.556	ID:10	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.556	ID:10	[INFO: SensorNode] Total energy: 3.700030 J
+01:00.556	ID:10	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.556	ID:10	[INFO: SensorNode] ============================
+01:00.594	ID:12	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.594	ID:12	[INFO: SensorNode] Sensor ID: 0
+01:00.594	ID:12	[INFO: SensorNode] Position: (3, 833)
+01:00.594	ID:12	[INFO: SensorNode] Mode: IDLE
+01:00.594	ID:12	[INFO: SensorNode] Deployed by: Random
+01:00.594	ID:12	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.594	ID:12	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.594	ID:12	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.594	ID:12	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.594	ID:12	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.594	ID:12	[INFO: SensorNode] ============================
+01:00.708	ID:9	[INFO: SensorNode] Switched to IDLE mode
+01:00.708	ID:9	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.708	ID:9	[INFO: SensorNode] Sensor ID: 0
+01:00.708	ID:9	[INFO: SensorNode] Position: (517, 571)
+01:00.708	ID:9	[INFO: SensorNode] Mode: IDLE
+01:00.708	ID:9	[INFO: SensorNode] Deployed by: Random
+01:00.708	ID:9	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.708	ID:9	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.708	ID:9	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.708	ID:9	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.708	ID:9	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.708	ID:9	[INFO: SensorNode] ============================
+01:00.715	ID:5	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.715	ID:5	[INFO: SensorNode] Sensor ID: 0
+01:00.715	ID:5	[INFO: SensorNode] Position: (298, 792)
+01:00.715	ID:5	[INFO: SensorNode] Mode: IDLE
+01:00.715	ID:5	[INFO: SensorNode] Deployed by: Random
+01:00.715	ID:5	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.715	ID:5	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.715	ID:5	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.715	ID:5	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.715	ID:5	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.715	ID:5	[INFO: SensorNode] ============================
+01:00.884	ID:13	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+01:00.884	ID:13	[INFO: SensorNode] Sensor ID: 0
+01:00.884	ID:13	[INFO: SensorNode] Position: (582, 113)
+01:00.884	ID:13	[INFO: SensorNode] Mode: IDLE
+01:00.884	ID:13	[INFO: SensorNode] Deployed by: Random
+01:00.884	ID:13	[INFO: SensorNode] Elapsed time: 60.00 seconds
+01:00.884	ID:13	[INFO: SensorNode] Baseline energy: 1.200000 J
+01:00.884	ID:13	[INFO: SensorNode] Radio energy: 0.000000 J
+01:00.884	ID:13	[INFO: SensorNode] Total energy: 1.200000 J
+01:00.884	ID:13	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+01:00.884	ID:13	[INFO: SensorNode] ============================
+01:00.899	ID:3	[INFO: MobileRobot] === ROBOT ENERGY REPORT ===
+01:00.899	ID:3	[INFO: MobileRobot] Robot ID: 1
+01:00.899	ID:3	[INFO: MobileRobot] Position: (500, 500)
+01:00.899	ID:3	[INFO: MobileRobot] Phase: 0
+01:00.899	ID:3	[INFO: MobileRobot] Assigned LA: 0
+01:00.899	ID:3	[INFO: MobileRobot] Sensor stock: 10
+01:00.899	ID:3	[INFO: MobileRobot] Elapsed time: 60.00 seconds
+01:00.899	ID:3	[INFO: MobileRobot] Baseline energy: 1.800000 J
+01:00.899	ID:3	[INFO: MobileRobot] Radio energy: 0.000000 J
+01:00.899	ID:3	[INFO: MobileRobot] Mobility energy: 0.000000 J
+01:00.899	ID:3	[INFO: MobileRobot] Total energy: 1.800000 J
+01:00.899	ID:3	[INFO: MobileRobot] Operations - TX: 0, RX: 0, Moves: 0, Processing: 0
+01:00.899	ID:3	[INFO: MobileRobot] ==========================
+01:10.073	ID:8	[INFO: SensorNode] Switched to ACTIVE mode
+01:10.250	ID:6	[INFO: SensorNode] Switched to ACTIVE mode
+01:10.348	ID:4	[INFO: SensorNode] Switched to ACTIVE mode
+01:10.715	ID:5	[INFO: SensorNode] Switched to ACTIVE mode
+01:20.073	ID:8	[INFO: SensorNode] Switched to IDLE mode
+01:20.190	ID:11	[INFO: SensorNode] Switched to IDLE mode
+01:20.450	ID:14	[INFO: SensorNode] Switched to ACTIVE mode
+01:20.462	ID:15	[INFO: SensorNode] Switched to IDLE mode
+01:20.708	ID:9	[INFO: SensorNode] Switched to ACTIVE mode
+01:30.250	ID:6	[INFO: SensorNode] Performed sensing operation at (377, 929)
+01:30.348	ID:4	[INFO: SensorNode] Switched to IDLE mode
+01:30.450	ID:14	[INFO: SensorNode] Performed sensing operation at (723, 763)
+01:30.462	ID:15	[INFO: SensorNode] Switched to ACTIVE mode
+01:30.462	ID:15	[INFO: SensorNode] Performed sensing operation at (527, 525)
+01:30.556	ID:10	[INFO: SensorNode] Performed sensing operation at (219, 187)
+01:30.708	ID:9	[INFO: SensorNode] Switched to IDLE mode
+01:30.715	ID:5	[INFO: SensorNode] Performed sensing operation at (298, 792)
+01:30.884	ID:13	[INFO: SensorNode] Switched to ACTIVE mode
+01:30.884	ID:13	[INFO: SensorNode] Performed sensing operation at (582, 113)
+01:40.556	ID:10	[INFO: SensorNode] Switched to IDLE mode
+01:40.594	ID:12	[INFO: SensorNode] Switched to ACTIVE mode
+01:50.073	ID:8	[INFO: SensorNode] Switched to ACTIVE mode
+01:50.348	ID:4	[INFO: SensorNode] Switched to ACTIVE mode
+01:50.402	ID:7	[INFO: SensorNode] Switched to ACTIVE mode
+01:50.450	ID:14	[INFO: SensorNode] Switched to IDLE mode
+02:00.073	ID:8	[INFO: SensorNode] Performed sensing operation at (277, 483)
+02:00.073	ID:8	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.073	ID:8	[INFO: SensorNode] Sensor ID: 0
+02:00.073	ID:8	[INFO: SensorNode] Position: (277, 483)
+02:00.073	ID:8	[INFO: SensorNode] Mode: ACTIVE
+02:00.073	ID:8	[INFO: SensorNode] Deployed by: Random
+02:00.073	ID:8	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.073	ID:8	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.073	ID:8	[INFO: SensorNode] Sensing energy: 2.500000 J
+02:00.073	ID:8	[INFO: SensorNode] Processing energy: 0.000030 J
+02:00.073	ID:8	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.073	ID:8	[INFO: SensorNode] Total energy: 4.900031 J
+02:00.073	ID:8	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.073	ID:8	[INFO: SensorNode] ============================
+02:00.190	ID:11	[INFO: SensorNode] Switched to ACTIVE mode
+02:00.190	ID:11	[INFO: SensorNode] Performed sensing operation at (609, 123)
+02:00.190	ID:11	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.190	ID:11	[INFO: SensorNode] Sensor ID: 0
+02:00.190	ID:11	[INFO: SensorNode] Position: (609, 123)
+02:00.190	ID:11	[INFO: SensorNode] Mode: ACTIVE
+02:00.190	ID:11	[INFO: SensorNode] Deployed by: Random
+02:00.190	ID:11	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.190	ID:11	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.190	ID:11	[INFO: SensorNode] Sensing energy: 3.750000 J
+02:00.190	ID:11	[INFO: SensorNode] Processing energy: 0.000045 J
+02:00.190	ID:11	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.190	ID:11	[INFO: SensorNode] Total energy: 6.150045 J
+02:00.190	ID:11	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.190	ID:11	[INFO: SensorNode] ============================
+02:00.236	ID:2	[INFO: MobileRobot] === ROBOT ENERGY REPORT ===
+02:00.236	ID:2	[INFO: MobileRobot] Robot ID: 1
+02:00.236	ID:2	[INFO: MobileRobot] Position: (500, 500)
+02:00.236	ID:2	[INFO: MobileRobot] Phase: 0
+02:00.236	ID:2	[INFO: MobileRobot] Assigned LA: 0
+02:00.236	ID:2	[INFO: MobileRobot] Sensor stock: 10
+02:00.236	ID:2	[INFO: MobileRobot] Elapsed time: 120.00 seconds
+02:00.236	ID:2	[INFO: MobileRobot] Baseline energy: 3.600000 J
+02:00.236	ID:2	[INFO: MobileRobot] Radio energy: 0.000000 J
+02:00.236	ID:2	[INFO: MobileRobot] Mobility energy: 0.000000 J
+02:00.236	ID:2	[INFO: MobileRobot] Total energy: 3.600000 J
+02:00.236	ID:2	[INFO: MobileRobot] Operations - TX: 0, RX: 0, Moves: 0, Processing: 0
+02:00.236	ID:2	[INFO: MobileRobot] ==========================
+02:00.250	ID:6	[INFO: SensorNode] Performed sensing operation at (377, 929)
+02:00.250	ID:6	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.250	ID:6	[INFO: SensorNode] Sensor ID: 0
+02:00.250	ID:6	[INFO: SensorNode] Position: (377, 929)
+02:00.250	ID:6	[INFO: SensorNode] Mode: ACTIVE
+02:00.250	ID:6	[INFO: SensorNode] Deployed by: Random
+02:00.250	ID:6	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.250	ID:6	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.250	ID:6	[INFO: SensorNode] Sensing energy: 3.750000 J
+02:00.250	ID:6	[INFO: SensorNode] Processing energy: 0.000045 J
+02:00.250	ID:6	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.250	ID:6	[INFO: SensorNode] Total energy: 6.150045 J
+02:00.250	ID:6	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.250	ID:6	[INFO: SensorNode] ============================
+02:00.348	ID:4	[INFO: SensorNode] Performed sensing operation at (912, 556)
+02:00.348	ID:4	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.348	ID:4	[INFO: SensorNode] Sensor ID: 0
+02:00.348	ID:4	[INFO: SensorNode] Position: (912, 556)
+02:00.348	ID:4	[INFO: SensorNode] Mode: ACTIVE
+02:00.348	ID:4	[INFO: SensorNode] Deployed by: Random
+02:00.348	ID:4	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.348	ID:4	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.348	ID:4	[INFO: SensorNode] Sensing energy: 2.500000 J
+02:00.348	ID:4	[INFO: SensorNode] Processing energy: 0.000030 J
+02:00.348	ID:4	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.348	ID:4	[INFO: SensorNode] Total energy: 4.900030 J
+02:00.348	ID:4	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.348	ID:4	[INFO: SensorNode] ============================
+02:00.384	ID:1	[INFO: BaseStation] === ENERGY & COVERAGE REPORT ===
+02:00.384	ID:1	[INFO: BaseStation] Elapsed time: 120.00 seconds
+02:00.384	ID:1	[INFO: BaseStation] Area coverage: 0.00%
+02:00.384	ID:1	[INFO: BaseStation] Processing energy: 0.000075 J
+02:00.384	ID:1	[INFO: BaseStation] Radio energy: 0.000100 J
+02:00.384	ID:1	[INFO: BaseStation] Total base station energy: 0.000175 J
+02:00.384	ID:1	[INFO: BaseStation] ==============================
+02:00.402	ID:7	[INFO: SensorNode] Performed sensing operation at (720, 476)
+02:00.402	ID:7	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.402	ID:7	[INFO: SensorNode] Sensor ID: 0
+02:00.402	ID:7	[INFO: SensorNode] Position: (720, 476)
+02:00.402	ID:7	[INFO: SensorNode] Mode: ACTIVE
+02:00.402	ID:7	[INFO: SensorNode] Deployed by: Random
+02:00.402	ID:7	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.402	ID:7	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.402	ID:7	[INFO: SensorNode] Sensing energy: 2.500000 J
+02:00.402	ID:7	[INFO: SensorNode] Processing energy: 0.000030 J
+02:00.402	ID:7	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.402	ID:7	[INFO: SensorNode] Total energy: 4.900030 J
+02:00.402	ID:7	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.402	ID:7	[INFO: SensorNode] ============================
+02:00.450	ID:14	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.450	ID:14	[INFO: SensorNode] Sensor ID: 0
+02:00.450	ID:14	[INFO: SensorNode] Position: (723, 763)
+02:00.450	ID:14	[INFO: SensorNode] Mode: IDLE
+02:00.450	ID:14	[INFO: SensorNode] Deployed by: Random
+02:00.450	ID:14	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.450	ID:14	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.450	ID:14	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.450	ID:14	[INFO: SensorNode] Total energy: 2.400000 J
+02:00.450	ID:14	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.450	ID:14	[INFO: SensorNode] ============================
+02:00.462	ID:15	[INFO: SensorNode] Performed sensing operation at (527, 525)
+02:00.462	ID:15	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.462	ID:15	[INFO: SensorNode] Sensor ID: 0
+02:00.462	ID:15	[INFO: SensorNode] Position: (527, 525)
+02:00.462	ID:15	[INFO: SensorNode] Mode: ACTIVE
+02:00.462	ID:15	[INFO: SensorNode] Deployed by: Random
+02:00.462	ID:15	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.462	ID:15	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.462	ID:15	[INFO: SensorNode] Sensing energy: 5.000000 J
+02:00.462	ID:15	[INFO: SensorNode] Processing energy: 0.000060 J
+02:00.462	ID:15	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.462	ID:15	[INFO: SensorNode] Total energy: 7.400060 J
+02:00.462	ID:15	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.462	ID:15	[INFO: SensorNode] ============================
+02:00.556	ID:10	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.556	ID:10	[INFO: SensorNode] Sensor ID: 0
+02:00.556	ID:10	[INFO: SensorNode] Position: (219, 187)
+02:00.556	ID:10	[INFO: SensorNode] Mode: IDLE
+02:00.556	ID:10	[INFO: SensorNode] Deployed by: Random
+02:00.556	ID:10	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.556	ID:10	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.556	ID:10	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.556	ID:10	[INFO: SensorNode] Total energy: 2.400000 J
+02:00.556	ID:10	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.556	ID:10	[INFO: SensorNode] ============================
+02:00.594	ID:12	[INFO: SensorNode] Switched to IDLE mode
+02:00.594	ID:12	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.594	ID:12	[INFO: SensorNode] Sensor ID: 0
+02:00.594	ID:12	[INFO: SensorNode] Position: (3, 833)
+02:00.594	ID:12	[INFO: SensorNode] Mode: IDLE
+02:00.594	ID:12	[INFO: SensorNode] Deployed by: Random
+02:00.594	ID:12	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.594	ID:12	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.594	ID:12	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.594	ID:12	[INFO: SensorNode] Total energy: 2.400000 J
+02:00.594	ID:12	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.594	ID:12	[INFO: SensorNode] ============================
+02:00.708	ID:9	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.708	ID:9	[INFO: SensorNode] Sensor ID: 0
+02:00.708	ID:9	[INFO: SensorNode] Position: (517, 571)
+02:00.708	ID:9	[INFO: SensorNode] Mode: IDLE
+02:00.708	ID:9	[INFO: SensorNode] Deployed by: Random
+02:00.708	ID:9	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.708	ID:9	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.708	ID:9	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.708	ID:9	[INFO: SensorNode] Total energy: 2.400000 J
+02:00.708	ID:9	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.708	ID:9	[INFO: SensorNode] ============================
+02:00.715	ID:5	[INFO: SensorNode] Performed sensing operation at (298, 792)
+02:00.715	ID:5	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.715	ID:5	[INFO: SensorNode] Sensor ID: 0
+02:00.715	ID:5	[INFO: SensorNode] Position: (298, 792)
+02:00.715	ID:5	[INFO: SensorNode] Mode: ACTIVE
+02:00.715	ID:5	[INFO: SensorNode] Deployed by: Random
+02:00.715	ID:5	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.715	ID:5	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.715	ID:5	[INFO: SensorNode] Sensing energy: 3.750000 J
+02:00.715	ID:5	[INFO: SensorNode] Processing energy: 0.000045 J
+02:00.715	ID:5	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.715	ID:5	[INFO: SensorNode] Total energy: 6.150045 J
+02:00.715	ID:5	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.715	ID:5	[INFO: SensorNode] ============================
+02:00.884	ID:13	[INFO: SensorNode] Performed sensing operation at (582, 113)
+02:00.884	ID:13	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+02:00.884	ID:13	[INFO: SensorNode] Sensor ID: 0
+02:00.884	ID:13	[INFO: SensorNode] Position: (582, 113)
+02:00.884	ID:13	[INFO: SensorNode] Mode: ACTIVE
+02:00.884	ID:13	[INFO: SensorNode] Deployed by: Random
+02:00.884	ID:13	[INFO: SensorNode] Elapsed time: 120.00 seconds
+02:00.884	ID:13	[INFO: SensorNode] Baseline energy: 2.400000 J
+02:00.884	ID:13	[INFO: SensorNode] Sensing energy: 3.750000 J
+02:00.884	ID:13	[INFO: SensorNode] Processing energy: 0.000045 J
+02:00.884	ID:13	[INFO: SensorNode] Radio energy: 0.000000 J
+02:00.884	ID:13	[INFO: SensorNode] Total energy: 6.150045 J
+02:00.884	ID:13	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+02:00.884	ID:13	[INFO: SensorNode] ============================
+02:00.899	ID:3	[INFO: MobileRobot] === ROBOT ENERGY REPORT ===
+02:00.899	ID:3	[INFO: MobileRobot] Robot ID: 1
+02:00.899	ID:3	[INFO: MobileRobot] Position: (500, 500)
+02:00.899	ID:3	[INFO: MobileRobot] Phase: 0
+02:00.899	ID:3	[INFO: MobileRobot] Assigned LA: 0
+02:00.899	ID:3	[INFO: MobileRobot] Sensor stock: 10
+02:00.899	ID:3	[INFO: MobileRobot] Elapsed time: 120.00 seconds
+02:00.899	ID:3	[INFO: MobileRobot] Baseline energy: 3.600000 J
+02:00.899	ID:3	[INFO: MobileRobot] Radio energy: 0.000000 J
+02:00.899	ID:3	[INFO: MobileRobot] Mobility energy: 0.000000 J
+02:00.899	ID:3	[INFO: MobileRobot] Total energy: 3.600000 J
+02:00.899	ID:3	[INFO: MobileRobot] Operations - TX: 0, RX: 0, Moves: 0, Processing: 0
+02:00.899	ID:3	[INFO: MobileRobot] ==========================
+02:10.073	ID:8	[INFO: SensorNode] Switched to IDLE mode
+02:10.402	ID:7	[INFO: SensorNode] Switched to IDLE mode
+02:10.462	ID:15	[INFO: SensorNode] Switched to IDLE mode
+02:10.556	ID:10	[INFO: SensorNode] Switched to ACTIVE mode
+02:10.715	ID:5	[INFO: SensorNode] Switched to IDLE mode
+02:20.708	ID:9	[INFO: SensorNode] Switched to ACTIVE mode
+02:20.715	ID:5	[INFO: SensorNode] Switched to ACTIVE mode
+02:20.884	ID:13	[INFO: SensorNode] Switched to IDLE mode
+02:30.073	ID:8	[INFO: SensorNode] Switched to ACTIVE mode
+02:30.073	ID:8	[INFO: SensorNode] Performed sensing operation at (277, 483)
+02:30.190	ID:11	[INFO: SensorNode] Switched to IDLE mode
+02:30.250	ID:6	[INFO: SensorNode] Performed sensing operation at (377, 929)
+02:30.348	ID:4	[INFO: SensorNode] Performed sensing operation at (912, 556)
+02:30.462	ID:15	[INFO: SensorNode] Switched to ACTIVE mode
+02:30.462	ID:15	[INFO: SensorNode] Performed sensing operation at (527, 525)
+02:30.556	ID:10	[INFO: SensorNode] Performed sensing operation at (219, 187)
+02:30.708	ID:9	[INFO: SensorNode] Performed sensing operation at (517, 571)
+02:30.715	ID:5	[INFO: SensorNode] Switched to IDLE mode
+02:40.073	ID:8	[INFO: SensorNode] Switched to IDLE mode
+02:40.450	ID:14	[INFO: SensorNode] Switched to ACTIVE mode
+02:40.462	ID:15	[INFO: SensorNode] Switched to IDLE mode
+02:40.884	ID:13	[INFO: SensorNode] Switched to ACTIVE mode
+02:50.190	ID:11	[INFO: SensorNode] Switched to ACTIVE mode
+02:50.708	ID:9	[INFO: SensorNode] Switched to IDLE mode
+03:00.073	ID:8	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.073	ID:8	[INFO: SensorNode] Sensor ID: 0
+03:00.073	ID:8	[INFO: SensorNode] Position: (277, 483)
+03:00.073	ID:8	[INFO: SensorNode] Mode: IDLE
+03:00.073	ID:8	[INFO: SensorNode] Deployed by: Random
+03:00.073	ID:8	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.073	ID:8	[INFO: SensorNode] Baseline energy: 3.600001 J
+03:00.073	ID:8	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.073	ID:8	[INFO: SensorNode] Total energy: 3.600001 J
+03:00.073	ID:8	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.073	ID:8	[INFO: SensorNode] ============================
+03:00.190	ID:11	[INFO: SensorNode] Performed sensing operation at (609, 123)
+03:00.190	ID:11	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.190	ID:11	[INFO: SensorNode] Sensor ID: 0
+03:00.190	ID:11	[INFO: SensorNode] Position: (609, 123)
+03:00.190	ID:11	[INFO: SensorNode] Mode: ACTIVE
+03:00.190	ID:11	[INFO: SensorNode] Deployed by: Random
+03:00.190	ID:11	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.190	ID:11	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.190	ID:11	[INFO: SensorNode] Sensing energy: 5.000000 J
+03:00.190	ID:11	[INFO: SensorNode] Processing energy: 0.000060 J
+03:00.190	ID:11	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.190	ID:11	[INFO: SensorNode] Total energy: 8.600060 J
+03:00.190	ID:11	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.190	ID:11	[INFO: SensorNode] ============================
+03:00.236	ID:2	[INFO: MobileRobot] === ROBOT ENERGY REPORT ===
+03:00.236	ID:2	[INFO: MobileRobot] Robot ID: 1
+03:00.236	ID:2	[INFO: MobileRobot] Position: (500, 500)
+03:00.236	ID:2	[INFO: MobileRobot] Phase: 0
+03:00.236	ID:2	[INFO: MobileRobot] Assigned LA: 0
+03:00.236	ID:2	[INFO: MobileRobot] Sensor stock: 10
+03:00.236	ID:2	[INFO: MobileRobot] Elapsed time: 180.00 seconds
+03:00.236	ID:2	[INFO: MobileRobot] Baseline energy: 5.400000 J
+03:00.236	ID:2	[INFO: MobileRobot] Radio energy: 0.000000 J
+03:00.236	ID:2	[INFO: MobileRobot] Mobility energy: 0.000000 J
+03:00.236	ID:2	[INFO: MobileRobot] Total energy: 5.400000 J
+03:00.236	ID:2	[INFO: MobileRobot] Operations - TX: 0, RX: 0, Moves: 0, Processing: 0
+03:00.236	ID:2	[INFO: MobileRobot] ==========================
+03:00.250	ID:6	[INFO: SensorNode] Performed sensing operation at (377, 929)
+03:00.250	ID:6	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.250	ID:6	[INFO: SensorNode] Sensor ID: 0
+03:00.250	ID:6	[INFO: SensorNode] Position: (377, 929)
+03:00.250	ID:6	[INFO: SensorNode] Mode: ACTIVE
+03:00.250	ID:6	[INFO: SensorNode] Deployed by: Random
+03:00.250	ID:6	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.250	ID:6	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.250	ID:6	[INFO: SensorNode] Sensing energy: 6.250000 J
+03:00.250	ID:6	[INFO: SensorNode] Processing energy: 0.000075 J
+03:00.250	ID:6	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.250	ID:6	[INFO: SensorNode] Total energy: 9.850076 J
+03:00.250	ID:6	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.250	ID:6	[INFO: SensorNode] ============================
+03:00.348	ID:4	[INFO: SensorNode] Performed sensing operation at (912, 556)
+03:00.348	ID:4	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.348	ID:4	[INFO: SensorNode] Sensor ID: 0
+03:00.348	ID:4	[INFO: SensorNode] Position: (912, 556)
+03:00.348	ID:4	[INFO: SensorNode] Mode: ACTIVE
+03:00.348	ID:4	[INFO: SensorNode] Deployed by: Random
+03:00.348	ID:4	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.348	ID:4	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.348	ID:4	[INFO: SensorNode] Sensing energy: 5.000000 J
+03:00.348	ID:4	[INFO: SensorNode] Processing energy: 0.000060 J
+03:00.348	ID:4	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.348	ID:4	[INFO: SensorNode] Total energy: 8.600060 J
+03:00.348	ID:4	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.348	ID:4	[INFO: SensorNode] ============================
+03:00.384	ID:1	[INFO: BaseStation] === ENERGY & COVERAGE REPORT ===
+03:00.384	ID:1	[INFO: BaseStation] Elapsed time: 180.00 seconds
+03:00.384	ID:1	[INFO: BaseStation] Area coverage: 0.00%
+03:00.384	ID:1	[INFO: BaseStation] Processing energy: 0.000075 J
+03:00.384	ID:1	[INFO: BaseStation] Radio energy: 0.000100 J
+03:00.384	ID:1	[INFO: BaseStation] Total base station energy: 0.000175 J
+03:00.384	ID:1	[INFO: BaseStation] ==============================
+03:00.402	ID:7	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.402	ID:7	[INFO: SensorNode] Sensor ID: 0
+03:00.402	ID:7	[INFO: SensorNode] Position: (720, 476)
+03:00.402	ID:7	[INFO: SensorNode] Mode: IDLE
+03:00.402	ID:7	[INFO: SensorNode] Deployed by: Random
+03:00.402	ID:7	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.402	ID:7	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.402	ID:7	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.402	ID:7	[INFO: SensorNode] Total energy: 3.600000 J
+03:00.402	ID:7	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.402	ID:7	[INFO: SensorNode] ============================
+03:00.450	ID:14	[INFO: SensorNode] Performed sensing operation at (723, 763)
+03:00.450	ID:14	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.450	ID:14	[INFO: SensorNode] Sensor ID: 0
+03:00.450	ID:14	[INFO: SensorNode] Position: (723, 763)
+03:00.450	ID:14	[INFO: SensorNode] Mode: ACTIVE
+03:00.450	ID:14	[INFO: SensorNode] Deployed by: Random
+03:00.450	ID:14	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.450	ID:14	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.450	ID:14	[INFO: SensorNode] Sensing energy: 2.500000 J
+03:00.450	ID:14	[INFO: SensorNode] Processing energy: 0.000030 J
+03:00.450	ID:14	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.450	ID:14	[INFO: SensorNode] Total energy: 6.100030 J
+03:00.450	ID:14	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.450	ID:14	[INFO: SensorNode] ============================
+03:00.462	ID:15	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.462	ID:15	[INFO: SensorNode] Sensor ID: 0
+03:00.462	ID:15	[INFO: SensorNode] Position: (527, 525)
+03:00.462	ID:15	[INFO: SensorNode] Mode: IDLE
+03:00.462	ID:15	[INFO: SensorNode] Deployed by: Random
+03:00.462	ID:15	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.462	ID:15	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.462	ID:15	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.462	ID:15	[INFO: SensorNode] Total energy: 3.600000 J
+03:00.462	ID:15	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.462	ID:15	[INFO: SensorNode] ============================
+03:00.556	ID:10	[INFO: SensorNode] Performed sensing operation at (219, 187)
+03:00.556	ID:10	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.556	ID:10	[INFO: SensorNode] Sensor ID: 0
+03:00.556	ID:10	[INFO: SensorNode] Position: (219, 187)
+03:00.556	ID:10	[INFO: SensorNode] Mode: ACTIVE
+03:00.556	ID:10	[INFO: SensorNode] Deployed by: Random
+03:00.556	ID:10	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.556	ID:10	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.556	ID:10	[INFO: SensorNode] Sensing energy: 6.250000 J
+03:00.556	ID:10	[INFO: SensorNode] Processing energy: 0.000075 J
+03:00.556	ID:10	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.556	ID:10	[INFO: SensorNode] Total energy: 9.850076 J
+03:00.556	ID:10	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.556	ID:10	[INFO: SensorNode] ============================
+03:00.594	ID:12	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.594	ID:12	[INFO: SensorNode] Sensor ID: 0
+03:00.594	ID:12	[INFO: SensorNode] Position: (3, 833)
+03:00.594	ID:12	[INFO: SensorNode] Mode: IDLE
+03:00.594	ID:12	[INFO: SensorNode] Deployed by: Random
+03:00.594	ID:12	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.594	ID:12	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.594	ID:12	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.594	ID:12	[INFO: SensorNode] Total energy: 3.600000 J
+03:00.594	ID:12	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.594	ID:12	[INFO: SensorNode] ============================
+03:00.708	ID:9	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.708	ID:9	[INFO: SensorNode] Sensor ID: 0
+03:00.708	ID:9	[INFO: SensorNode] Position: (517, 571)
+03:00.708	ID:9	[INFO: SensorNode] Mode: IDLE
+03:00.708	ID:9	[INFO: SensorNode] Deployed by: Random
+03:00.708	ID:9	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.708	ID:9	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.708	ID:9	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.708	ID:9	[INFO: SensorNode] Total energy: 3.600000 J
+03:00.708	ID:9	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.708	ID:9	[INFO: SensorNode] ============================
+03:00.715	ID:5	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.715	ID:5	[INFO: SensorNode] Sensor ID: 0
+03:00.715	ID:5	[INFO: SensorNode] Position: (298, 792)
+03:00.715	ID:5	[INFO: SensorNode] Mode: IDLE
+03:00.715	ID:5	[INFO: SensorNode] Deployed by: Random
+03:00.715	ID:5	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.715	ID:5	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.715	ID:5	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.715	ID:5	[INFO: SensorNode] Total energy: 3.600000 J
+03:00.715	ID:5	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.715	ID:5	[INFO: SensorNode] ============================
+03:00.884	ID:13	[INFO: SensorNode] Switched to IDLE mode
+03:00.884	ID:13	[INFO: SensorNode] === SENSOR ENERGY REPORT ===
+03:00.884	ID:13	[INFO: SensorNode] Sensor ID: 0
+03:00.884	ID:13	[INFO: SensorNode] Position: (582, 113)
+03:00.884	ID:13	[INFO: SensorNode] Mode: IDLE
+03:00.884	ID:13	[INFO: SensorNode] Deployed by: Random
+03:00.884	ID:13	[INFO: SensorNode] Elapsed time: 180.00 seconds
+03:00.884	ID:13	[INFO: SensorNode] Baseline energy: 3.600000 J
+03:00.884	ID:13	[INFO: SensorNode] Radio energy: 0.000000 J
+03:00.884	ID:13	[INFO: SensorNode] Total energy: 3.600000 J
+03:00.884	ID:13	[INFO: SensorNode] Operations - Sensing: 0, Processing: 0, TX: 0, RX: 0
+03:00.884	ID:13	[INFO: SensorNode] ============================
+03:00.899	ID:3	[INFO: MobileRobot] === ROBOT ENERGY REPORT ===
+03:00.899	ID:3	[INFO: MobileRobot] Robot ID: 1
+03:00.899	ID:3	[INFO: MobileRobot] Position: (500, 500)
+03:00.899	ID:3	[INFO: MobileRobot] Phase: 0
+03:00.899	ID:3	[INFO: MobileRobot] Assigned LA: 0
+03:00.899	ID:3	[INFO: MobileRobot] Sensor stock: 10
+03:00.899	ID:3	[INFO: MobileRobot] Elapsed time: 180.00 seconds
+03:00.899	ID:3	[INFO: MobileRobot] Baseline energy: 5.400000 J
+03:00.899	ID:3	[INFO: MobileRobot] Radio energy: 0.000000 J
+03:00.899	ID:3	[INFO: MobileRobot] Mobility energy: 0.000000 J
+03:00.899	ID:3	[INFO: MobileRobot] Total energy: 5.400000 J
+03:00.899	ID:3	[INFO: MobileRobot] Operations - TX: 0, RX: 0, Moves: 0, Processing: 0
+03:00.899	ID:3	[INFO: MobileRobot] ==========================
