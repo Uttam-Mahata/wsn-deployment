@@ -1,8 +1,6 @@
 /*
- * WSN Deployment Mobile Robot Implementation - Complete APP_I Algorithm
- * Based on the algorithm 
- * 
- * Implements proper:
+ * WSN Deployment Mobile Robot Implementation 
+
  * 1. Grid creation based on NO_G formula
  * 2. Topology Discovery Phase with Mp broadcast
  * 3. Dispersion Phase with 4 cases
@@ -40,12 +38,16 @@ static position_t current_position;
 static uint8_t stock_rs = INITIAL_STOCK; /* Robot sensor stock */
 static uint8_t no_p; /* Number of permissible moves */
 static bool local_phase_active = false;
+static bool assignment_received = false;
 
 /* Local databases maintained by robot */
 static grid_db_entry_t grid_db[WSN_DEPLOYMENT_CONF_MAX_GRIDS_PER_LA];
 static sensor_db_entry_t sensor_db[WSN_DEPLOYMENT_CONF_MAX_SENSORS];
 static uint8_t num_grids = 0;
 static uint8_t num_sensors = 0;
+
+/* Pending assignment data */
+static la_assignment_msg_t pending_assignment;
 
 /* Energy tracking */
 static double total_energy_consumed = 0.0;
@@ -541,7 +543,11 @@ static void send_report_to_bs(void)
     uip_ipaddr_t bs_addr;
     uip_ip6addr(&bs_addr, 0xfe80, 0, 0, 0, 0x0201, 0x0001, 0x0001, 0x0001);
     
-    simple_udp_sendto(&udp_conn, &report, sizeof(report), &bs_addr);
+    /* Send multiple times to ensure delivery */
+    for (int attempts = 0; attempts < 3; attempts++) {
+        simple_udp_sendto(&udp_conn, &report, sizeof(report), &bs_addr);
+        clock_delay(CLOCK_SECOND / 10);
+    }
     
     LOG_INFO("Sent Robot_%dM report to BS: (%d, %d)\n", robot_id, robot_id, covered_grids);
     
@@ -598,7 +604,7 @@ static void handle_la_assignment(uint8_t la_id, int16_t center_x, int16_t center
 }
 
 /*---------------------------------------------------------------------------*/
-/* UDP callback function */
+/* UDP callback function with enhanced debugging - FIXED VERSION */
 static void udp_rx_callback(struct simple_udp_connection *c,
                            const uip_ipaddr_t *sender_addr,
                            uint16_t sender_port,
@@ -607,28 +613,44 @@ static void udp_rx_callback(struct simple_udp_connection *c,
                            const uint8_t *data,
                            uint16_t datalen)
 {
-    LOG_INFO("Robot_%d received UDP message, length: %d\n", robot_id, datalen);
+    LOG_INFO("Robot_%d received UDP message from port %d, length: %d\n", 
+             robot_id, sender_port, datalen);
+    
+    /* Print first few bytes for debugging */
+    if (datalen > 0) {
+        LOG_INFO("Message content: [0x%02x", data[0]);
+        for (int i = 1; i < MIN(datalen, 8); i++) {
+            LOG_INFO(" 0x%02x", data[i]);
+        }
+        LOG_INFO("]\n");
+    }
     
     /* Handle LA assignment from base station */
     if (datalen == sizeof(la_assignment_msg_t)) {
         la_assignment_msg_t *assignment = (la_assignment_msg_t *)data;
         
-        LOG_INFO("Checking message type: %d (expected: %d)\n", assignment->msg_type, WSN_MSG_TYPE_LA_ASSIGNMENT);
+        LOG_INFO("Parsed: msg_type=%d, robot_id=%d, la_id=%d, center=(%d,%d)\n",
+                 assignment->msg_type, assignment->robot_id, assignment->la_id,
+                 assignment->center_x, assignment->center_y);
         
         if (assignment->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT) {
-            /* Check if this assignment is for this robot or a broadcast message */
+            /* Accept assignment for this robot or broadcast (robot_id = 0) */
             if (assignment->robot_id == robot_id || assignment->robot_id == 0) {
-                LOG_INFO("Robot_%d received LA assignment: LA_%d at (%d, %d)\n",
+                LOG_INFO("*** Robot_%d ACCEPTING LA assignment: LA_%d at (%d, %d) ***\n",
                          robot_id, assignment->la_id, assignment->center_x, assignment->center_y);
                 
-                /* Process the assignment in a separate process context to avoid blocking */
+                assignment_received = true;
+                pending_assignment = *assignment;
+                
+                /* Trigger immediate processing */
                 process_post(&mobile_robot_process, PROCESS_EVENT_CONTINUE, assignment);
+                
             } else {
-                LOG_INFO("Robot_%d ignoring LA assignment for Robot_%d\n", robot_id, assignment->robot_id);
+                LOG_INFO("Robot_%d ignoring assignment for Robot_%d\n", 
+                         robot_id, assignment->robot_id);
             }
         } else {
-            LOG_INFO("Robot_%d received message with unexpected type: %d\n", 
-                     robot_id, assignment->msg_type);
+            LOG_INFO("Robot_%d: unexpected message type %d\n", robot_id, assignment->msg_type);
         }
     }
     /* Handle sensor replies during topology discovery */
@@ -649,11 +671,8 @@ static void udp_rx_callback(struct simple_udp_connection *c,
             }
         }
     } else {
-        LOG_INFO("Robot_%d received unknown message type or size: %d bytes\n", robot_id, datalen);
-        /* Debug: Print first few bytes to help diagnose message format */
-        if (datalen > 0) {
-            LOG_INFO("First byte: 0x%02x\n", data[0]);
-        }
+        LOG_INFO("Robot_%d: unexpected message size %d (expected %d)\n", 
+                 robot_id, datalen, (int)sizeof(la_assignment_msg_t));
     }
 }
 
@@ -673,6 +692,7 @@ static void print_robot_statistics(void)
     LOG_INFO("  - Mobility: %.4f J\n", mobility_energy);
     LOG_INFO("Sensors in DB: %d\n", num_sensors);
     LOG_INFO("Grids in DB: %d\n", num_grids);
+    LOG_INFO("Assignment received: %s\n", assignment_received ? "Yes" : "No");
 }
 
 /*---------------------------------------------------------------------------*/
@@ -686,10 +706,13 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
     /* Initialize robot */
     robot_id = node_id;
     
-    /* Set initial position based on node ID (from log file) */
+    /* Set initial position based on node ID */
     if (robot_id == 2) {
         current_position.x = 433; 
         current_position.y = 531;
+    } else if (robot_id == 3) {
+        current_position.x = 500;
+        current_position.y = 500;
     } else {
         /* Default position for other robots */
         current_position.x = 500;
@@ -710,7 +733,7 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
              robot_id, UDP_SERVER_PORT, UDP_CLIENT_PORT);
     
     /* Wait for network to stabilize */
-    etimer_set(&timer, 5 * CLOCK_SECOND);
+    etimer_set(&timer, 15 * CLOCK_SECOND);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
     
     LOG_INFO("Robot_%d ready and waiting for LA assignment from BS\n", robot_id);
