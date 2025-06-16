@@ -1,6 +1,5 @@
 /*
  * WSN Deployment Base Station Implementation
- * Based on the APP_I algorithm 
  * 
  * The base station coordinates the global phase of sensor deployment
  * by managing location areas and robot assignments.
@@ -54,6 +53,9 @@ static const double processing_time = 0.2;      /* T_P in seconds (higher for BS
 /* Network energy tracking - reported by nodes */
 static double robot_reported_energy[WSN_DEPLOYMENT_CONF_MAX_ROBOTS] = {0};
 static double sensor_reported_energy[WSN_DEPLOYMENT_CONF_MAX_SENSORS] = {0};
+
+/* Track assignment attempts */
+static bool assignments_sent = false;
 
 /* Forward declarations */
 static void send_la_assignment(uint8_t robot_id, uint8_t la_id);
@@ -264,6 +266,8 @@ static void udp_rx_callback(struct simple_udp_connection *c,
                            const uint8_t *data,
                            uint16_t datalen)
 {
+    LOG_INFO("BS received UDP message, length: %d\n", datalen);
+    
     if (datalen == sizeof(robot_report_msg_t)) {
         robot_report_msg_t *msg = (robot_report_msg_t *)data;
         
@@ -286,9 +290,9 @@ static void udp_rx_callback(struct simple_udp_connection *c,
                 LOG_INFO("No more LAs to assign to Robot_%d\n", msg->robot_id);
             }
         }
+    } else {
+        LOG_INFO("Unknown message type or size: %d bytes\n", datalen);
     }
-    
-    /* Future enhancement: Add energy report messages from nodes */
 }
 
 /*---------------------------------------------------------------------------*/
@@ -320,7 +324,7 @@ static void print_statistics(void)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Send LA assignment to robot */
+/* Send LA assignment with simplified addressing - FIXED VERSION */
 static void send_la_assignment(uint8_t robot_id, uint8_t la_id)
 {
     /* Find LA details */
@@ -333,27 +337,28 @@ static void send_la_assignment(uint8_t robot_id, uint8_t la_id)
             assignment.center_x = la_db[i].center_x;
             assignment.center_y = la_db[i].center_y;
             
-            /* Use multicast to reach all robots - more reliable in WSN scenarios */
+            LOG_INFO("Sending LA assignment to Robot_%d\n", robot_id);
+            LOG_INFO("Assignment: LA_%d at (%d, %d)\n", la_id, assignment.center_x, assignment.center_y);
+            
+            /* Use link-local multicast for reliable delivery */
             uip_ipaddr_t dest_ipaddr;
             uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
             
-            LOG_INFO("Broadcasting LA assignment to Robot_%d via multicast\n", robot_id);
-            LOG_INFO("Message size: %lu bytes, type: %d\n", (unsigned long)sizeof(assignment), assignment.msg_type);
-            
-            /* Send the message multiple times to improve reliability */
-            for (int attempts = 0; attempts < 3; attempts++) {
+            /* Send message multiple times for reliability */
+            for (int attempts = 0; attempts < 10; attempts++) {
                 simple_udp_sendto(&udp_conn, &assignment, sizeof(assignment), &dest_ipaddr);
+                LOG_INFO("Sent attempt %d for Robot_%d\n", attempts + 1, robot_id);
                 
-                /* Add small delay between transmissions */
-                clock_delay(CLOCK_SECOND / 10);
+                /* Add delay between transmissions */
+                clock_delay(CLOCK_SECOND / 4); /* 250ms delay */
             }
             
             /* Update radio energy for transmission */
-            double tx_energy = power_transmit_base * 0.03; /* 3x transmission energy */
+            double tx_energy = power_transmit_base * 0.1; /* Multiple transmissions */
             radio_energy += tx_energy;
             total_energy_consumed += tx_energy;
             
-            LOG_INFO("Sent LA assignment to Robot_%d: LA_%d at (%d, %d)\n",
+            LOG_INFO("Completed sending LA assignment to Robot_%d: LA_%d at (%d, %d)\n",
                      robot_id, la_id, assignment.center_x, assignment.center_y);
             break;
         }
@@ -364,7 +369,7 @@ static void send_la_assignment(uint8_t robot_id, uint8_t la_id)
 /* Base Station Process Thread */
 PROCESS_THREAD(base_station_process, ev, data)
 {
-    static struct etimer timer;
+    static struct etimer timer, assignment_timer;
     
     PROCESS_BEGIN();
     
@@ -385,55 +390,69 @@ PROCESS_THREAD(base_station_process, ev, data)
     
     LOG_INFO("Base Station initialized. Starting global phase...\n");
     
-    /* Wait for robots to initialize */
-    etimer_set(&timer, 10 * CLOCK_SECOND);
+    /* Wait longer for network to stabilize and routing to be established */
+    etimer_set(&timer, 60 * CLOCK_SECOND); /* Increased to 60 seconds */
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
     
-    LOG_INFO("Starting robot assignments...\n");
+    LOG_INFO("Network should be stable now. Starting robot assignments...\n");
     
-    /* Initial robot assignments - assign robots to different LAs */
-    /* Robot node IDs start from 2 in the simulation */
-    for (uint8_t robot_node_id = 2; robot_node_id <= (1 + MAX_ROBOTS); robot_node_id++) {
-        if (assign_la_to_robot(robot_node_id)) {
-            LOG_INFO("Successfully assigned Robot_%d\n", robot_node_id);
-        } else {
-            LOG_INFO("Failed to assign Robot_%d - no available LAs\n", robot_node_id);
-        }
-    }
+    /* Set up periodic assignment attempts */
+    etimer_set(&assignment_timer, 2 * CLOCK_SECOND);
     
     /* Set up periodic energy update and statistics reporting */
-    etimer_set(&timer, 5 * CLOCK_SECOND); /* Energy update every 5 seconds */
+    etimer_set(&timer, 5 * CLOCK_SECOND);
     
     while (1) {
-        PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+        PROCESS_WAIT_EVENT();
         
-        /* Update base station energy */
-        update_base_station_energy();
-        
-        /* Print statistics every 30 seconds */
-        static uint8_t count = 0;
-        if (++count >= 6) {
-            print_statistics();
-            count = 0;
-            
-            /* Check if deployment is complete */
-            bool deployment_complete = true;
-            for (uint8_t i = 0; i < num_las; i++) {
-                if (la_db[i].no_grid == 0) {
-                    deployment_complete = false;
-                    break;
+        if (ev == PROCESS_EVENT_TIMER) {
+            if (data == &assignment_timer && !assignments_sent) {
+                LOG_INFO("Attempting robot assignments...\n");
+                
+                /* Initial robot assignments - assign robots to different LAs */
+                /* Robot node IDs start from 2 in the simulation */
+                for (uint8_t robot_node_id = 2; robot_node_id <= (1 + MAX_ROBOTS); robot_node_id++) {
+                    if (assign_la_to_robot(robot_node_id)) {
+                        LOG_INFO("Successfully assigned Robot_%d\n", robot_node_id);
+                    } else {
+                        LOG_INFO("Failed to assign Robot_%d - no available LAs\n", robot_node_id);
+                    }
                 }
-            }
-            
-            if (deployment_complete) {
-                LOG_INFO("Deployment complete! Final coverage: %.2f%%\n", 
-                         calculate_area_coverage());
-                LOG_INFO("Final energy consumption: %.4f J\n",
-                         calculate_total_network_energy());
+                assignments_sent = true;
+                
+                /* Continue sending assignments periodically until robots respond */
+                etimer_set(&assignment_timer, 15 * CLOCK_SECOND);
+                
+            } else if (data == &timer) {
+                /* Update base station energy */
+                update_base_station_energy();
+                
+                /* Print statistics every 30 seconds */
+                static uint8_t count = 0;
+                if (++count >= 6) {
+                    print_statistics();
+                    count = 0;
+                    
+                    /* Check if deployment is complete */
+                    bool deployment_complete = true;
+                    for (uint8_t i = 0; i < num_las; i++) {
+                        if (la_db[i].no_grid == 0) {
+                            deployment_complete = false;
+                            break;
+                        }
+                    }
+                    
+                    if (deployment_complete) {
+                        LOG_INFO("Deployment complete! Final coverage: %.2f%%\n", 
+                                 calculate_area_coverage());
+                        LOG_INFO("Final energy consumption: %.4f J\n",
+                                 calculate_total_network_energy());
+                    }
+                }
+                
+                etimer_reset(&timer);
             }
         }
-        
-        etimer_reset(&timer);
     }
     
     PROCESS_END();

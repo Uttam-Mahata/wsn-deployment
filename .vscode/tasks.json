@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run WSN Deployment Simulation",
+			"type": "shell",
+			"command": "cd /home/uttammahata/wsn-deployment/src && java -jar /home/uttammahata/storage/contiki-ng/tools/cooja/dist/cooja.jar -quickstart=wsn-deployment-simulation.csc",
+			"group": "test",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

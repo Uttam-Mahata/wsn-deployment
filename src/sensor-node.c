@@ -1,8 +1,6 @@
 /*
- * WSN Deployment Sensor Node Implementation - Complete APP_I Algorithm
- * Based on the algorithm 
- * 
- * Implements proper:
+ * WSN Deployment Sensor Node Implementation
+ 
  * 1. Response to robot discovery messages (Sensor_M)
  * 2. Active/Idle mode energy calculations
  * 3. Comprehensive energy model including baseline, sensing, processing, radio
