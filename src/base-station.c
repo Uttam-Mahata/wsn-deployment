@@ -54,9 +54,6 @@ static const double processing_time = 0.2;      /* T_P in seconds (higher for BS
 static double robot_reported_energy[WSN_DEPLOYMENT_CONF_MAX_ROBOTS] = {0};
 static double sensor_reported_energy[WSN_DEPLOYMENT_CONF_MAX_SENSORS] = {0};
 
-/* Track assignment attempts */
-static bool assignments_sent = false;
-
 /* Forward declarations */
 static void send_la_assignment(uint8_t robot_id, uint8_t la_id);
 
@@ -200,19 +197,45 @@ static bool assign_la_to_robot(uint8_t robot_id)
     int8_t la_index = find_unassigned_la();
     
     if (la_index == -1) {
-        LOG_INFO("No unassigned location area found\n");
+        // Log specific to which robot if needed, but find_unassigned_la is general.
+        LOG_INFO("No unassigned location area available to assign to Robot_%d\n", robot_id);
         return false;
     }
     
-    /* Update robot database */
-    robot_db[num_robots].robot_id = robot_id;
-    robot_db[num_robots].assigned_la_id = la_db[la_index].la_id;
-    num_robots++;
+    int8_t robot_db_idx = -1;
+    for (uint8_t i = 0; i < num_robots; i++) {
+        if (robot_db[i].robot_id == robot_id) {
+            robot_db_idx = i;
+            break;
+        }
+    }
+
+    uint8_t target_la_id = la_db[la_index].la_id;
+
+    if (robot_db_idx != -1) {
+        // Robot found, update its assignment.
+        // This is important for when a robot finishes an LA and needs a new one,
+        // or if we are re-broadcasting an initial assignment.
+        LOG_INFO("Robot_%d found in DB (idx %d). Updating assigned LA to LA_%d.\n", robot_id, robot_db_idx, target_la_id);
+        robot_db[robot_db_idx].assigned_la_id = target_la_id;
+    } else {
+        // Robot not found, add new entry if space available
+        if (num_robots < WSN_DEPLOYMENT_CONF_MAX_ROBOTS) {
+            LOG_INFO("Robot_%d not in DB. Adding new entry for LA_%d.\n", robot_id, target_la_id);
+            robot_db[num_robots].robot_id = robot_id;
+            robot_db[num_robots].assigned_la_id = target_la_id;
+            num_robots++; // Increment count of distinct robots managed
+        } else {
+            LOG_ERROR("Cannot assign LA to Robot_%d: robot_db is full (max %d robots).\n", robot_id, WSN_DEPLOYMENT_CONF_MAX_ROBOTS);
+            return false;
+        }
+    }
     
-    LOG_INFO("Assigned LA_%d to Robot_%d\n", la_db[la_index].la_id, robot_id);
+    LOG_INFO("Assigning LA_%d to Robot_%d. Center (%d, %d)\n",
+             target_la_id, robot_id, la_db[la_index].center_x, la_db[la_index].center_y);
     
     /* Send LA assignment to robot */
-    send_la_assignment(robot_id, la_db[la_index].la_id);
+    send_la_assignment(robot_id, target_la_id);
     
     return true;
 }
@@ -396,8 +419,8 @@ PROCESS_THREAD(base_station_process, ev, data)
     
     LOG_INFO("Network should be stable now. Starting robot assignments...\n");
     
-    /* Set up periodic assignment attempts */
-    etimer_set(&assignment_timer, 2 * CLOCK_SECOND);
+    /* Set up periodic assignment attempts - more frequent initially */
+    etimer_set(&assignment_timer, 5 * CLOCK_SECOND); // Try assignments every 5 seconds initially
     
     /* Set up periodic energy update and statistics reporting */
     etimer_set(&timer, 5 * CLOCK_SECOND);
@@ -406,22 +429,85 @@ PROCESS_THREAD(base_station_process, ev, data)
         PROCESS_WAIT_EVENT();
         
         if (ev == PROCESS_EVENT_TIMER) {
-            if (data == &assignment_timer && !assignments_sent) {
-                LOG_INFO("Attempting robot assignments...\n");
-                
-                /* Initial robot assignments - assign robots to different LAs */
-                /* Robot node IDs start from 2 in the simulation */
+            if (data == &assignment_timer) {
+                LOG_INFO("Assignment timer triggered. Checking for robots needing assignments...\n");
+                uint8_t robots_with_active_assignment = 0;
+
                 for (uint8_t robot_node_id = 2; robot_node_id <= (1 + MAX_ROBOTS); robot_node_id++) {
-                    if (assign_la_to_robot(robot_node_id)) {
-                        LOG_INFO("Successfully assigned Robot_%d\n", robot_node_id);
-                    } else {
-                        LOG_INFO("Failed to assign Robot_%d - no available LAs\n", robot_node_id);
+                    int8_t robot_db_idx = -1;
+                    for(uint8_t i=0; i < num_robots; ++i) { // Check against current num_robots
+                        if(robot_db[i].robot_id == robot_node_id) {
+                            robot_db_idx = i;
+                            break;
+                        }
+                    }
+
+                    if (robot_db_idx != -1) { // Robot is known in robot_db
+                        uint8_t assigned_la_id = robot_db[robot_db_idx].assigned_la_id;
+                        bool la_still_uncovered = false;
+
+                        if (assigned_la_id != 0) {
+                            for (uint8_t la_idx = 0; la_idx < num_las; ++la_idx) {
+                                if (la_db[la_idx].la_id == assigned_la_id) {
+                                    if (la_db[la_idx].no_grid < NO_G) { // Assuming NO_G is max grids for an LA
+                                        la_still_uncovered = true;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (assigned_la_id == 0 || !la_still_uncovered) {
+                            // Robot's current LA is done, or it had no LA. Assign a new one.
+                            LOG_INFO("Robot_%d (known) needs a new LA (current LA_ID: %d, covered: %s). Attempting new assignment.\n",
+                                     robot_node_id, assigned_la_id, la_still_uncovered ? "no" : "yes");
+                            if(assign_la_to_robot(robot_node_id)) { // This finds a NEW unassigned LA
+                                robots_with_active_assignment++;
+                            }
+                        } else { // Robot has an LA (assigned_la_id != 0) and it's still uncovered
+                            LOG_INFO("Robot_%d (known): Re-sending assignment for its current LA_%d as it's not fully covered.\n",
+                                     robot_node_id, assigned_la_id);
+                            send_la_assignment(robot_node_id, assigned_la_id); // Re-send current LA assignment
+                            robots_with_active_assignment++;
+                        }
+                    } else { // Robot not in robot_db, try to make an initial assignment.
+                        LOG_INFO("Robot_%d not in DB. Attempting initial assignment.\n", robot_node_id);
+                        if (assign_la_to_robot(robot_node_id)) { // This adds robot to DB and assigns a NEW LA
+                            robots_with_active_assignment++;
+                        }
                     }
                 }
-                assignments_sent = true;
-                
-                /* Continue sending assignments periodically until robots respond */
-                etimer_set(&assignment_timer, 15 * CLOCK_SECOND);
+
+                // Adjust timer based on how many robots seem to be actively managed
+                if (robots_with_active_assignment >= MAX_ROBOTS && num_robots >= MAX_ROBOTS) {
+                     // And all LAs are either assigned or covered
+                    bool all_las_accounted_for = true;
+                    for(uint8_t i=0; i<num_las; ++i) {
+                        if(la_db[i].no_grid < NO_G) { // If any LA is not fully covered
+                            bool is_assigned = false;
+                            for(uint8_t r_idx=0; r_idx < num_robots; ++r_idx) {
+                                if(robot_db[r_idx].assigned_la_id == la_db[i].la_id) {
+                                    is_assigned = true;
+                                    break;
+                                }
+                            }
+                            if(!is_assigned) {
+                                all_las_accounted_for = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (all_las_accounted_for) {
+                        LOG_INFO("All robots appear to have assignments and all LAs are accounted for. Slowing down assignment checks.\n");
+                        etimer_set(&assignment_timer, 30 * CLOCK_SECOND);
+                    } else {
+                        LOG_INFO("Some LAs still need assignment or work. Checking assignments in 10s.\n");
+                        etimer_set(&assignment_timer, 10 * CLOCK_SECOND);
+                    }
+                } else {
+                     LOG_INFO("Not all robots have active assignments or some LAs pending. Checking assignments in 5s.\n");
+                    etimer_set(&assignment_timer, 5 * CLOCK_SECOND);
+                }
                 
             } else if (data == &timer) {
                 /* Update base station energy */

@@ -613,40 +613,102 @@ static void udp_rx_callback(struct simple_udp_connection *c,
                            const uint8_t *data,
                            uint16_t datalen)
 {
-    LOG_INFO("Robot_%d received UDP message from port %d, length: %d\n", 
-             robot_id, sender_port, datalen);
-    
+    LOG_INFO("Robot_%d: RX UDP msg from port %d, len %d. From: ", robot_id, sender_port, datalen);
+    LOG_INFO_6ADDR(sender_addr);
+    LOG_INFO_("\n");
+
     /* Print first few bytes for debugging */
     if (datalen > 0) {
-        LOG_INFO("Message content: [0x%02x", data[0]);
-        for (int i = 1; i < MIN(datalen, 8); i++) {
-            LOG_INFO(" 0x%02x", data[i]);
-        }
-        LOG_INFO("]\n");
+        char buf[40];
+        snprintf(buf, sizeof(buf), "Msg hex: %02x %02x %02x %02x",
+                 data[0],
+                 datalen > 1 ? data[1] : 0,
+                 datalen > 2 ? data[2] : 0,
+                 datalen > 3 ? data[3] : 0);
+        LOG_INFO("%s\n", buf);
     }
     
     /* Handle LA assignment from base station */
     if (datalen == sizeof(la_assignment_msg_t)) {
-        la_assignment_msg_t *assignment = (la_assignment_msg_t *)data;
+        la_assignment_msg_t *assignment_msg = (la_assignment_msg_t *)data;
         
-        LOG_INFO("Parsed: msg_type=%d, robot_id=%d, la_id=%d, center=(%d,%d)\n",
-                 assignment->msg_type, assignment->robot_id, assignment->la_id,
-                 assignment->center_x, assignment->center_y);
+        LOG_INFO("Robot_%d: Received potential LA Assignment Msg. Type: %d, Target Robot: %d, LA_ID: %d, Center: (%d,%d)\n",
+                 robot_id, assignment_msg->msg_type, assignment_msg->robot_id, assignment_msg->la_id,
+                 assignment_msg->center_x, assignment_msg->center_y);
         
-        if (assignment->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT) {
-            /* Accept assignment for this robot or broadcast (robot_id = 0) */
-            if (assignment->robot_id == robot_id || assignment->robot_id == 0) {
-                LOG_INFO("*** Robot_%d ACCEPTING LA assignment: LA_%d at (%d, %d) ***\n",
-                         robot_id, assignment->la_id, assignment->center_x, assignment->center_y);
+        if (assignment_msg->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT) {
+            /* Accept assignment for this robot or broadcast (robot_id = 0 typically means all robots, but paper implies specific robot ID) */
+            if (assignment_msg->robot_id == robot_id) {
+                LOG_INFO("Robot_%d: LA assignment IS FOR ME. LA_ID: %d, Center: (%d, %d)\n",
+                         robot_id, assignment_msg->la_id, assignment_msg->center_x, assignment_msg->center_y);
                 
                 assignment_received = true;
-                pending_assignment = *assignment;
+                // It's important to copy the data, as the original buffer might be reused by the network stack.
+                // The pending_assignment field is already a struct, so this direct copy is fine.
+                pending_assignment = *assignment_msg;
                 
-                /* Trigger immediate processing */
-                process_post(&mobile_robot_process, PROCESS_EVENT_CONTINUE, assignment);
+                LOG_INFO("Robot_%d: Posting PROCESS_EVENT_CONTINUE to self to handle assignment.\n", robot_id);
+                // Pass a pointer to the *copied* data if necessary, or rely on pending_assignment.
+                // Since pending_assignment is a global static in this file, we can pass NULL or a generic pointer
+                // and then use pending_assignment in the process handler.
+                // The current code passes 'assignment_msg' which is a pointer to the network buffer.
+                // This is risky. Let's post with NULL and use pending_assignment.
+                process_post(&mobile_robot_process, PROCESS_EVENT_CONTINUE, NULL); // Data is in pending_assignment
                 
             } else {
-                LOG_INFO("Robot_%d ignoring assignment for Robot_%d\n", 
+                LOG_INFO("Robot_%d: LA assignment is for Robot_%d. Ignoring.\n",
+                         robot_id, assignment_msg->robot_id);
+            }
+        } else {
+            LOG_INFO("Robot_%d: Message is LA_assignment size, but wrong type: %d\n", robot_id, assignment_msg->msg_type);
+        }
+    }
+    /* Handle sensor replies during topology discovery */
+    else if (datalen == sizeof(sensor_reply_msg_t)) {
+        sensor_reply_msg_t *reply = (sensor_reply_msg_t *)data;
+
+        if (reply->msg_type == WSN_MSG_TYPE_SENSOR_REPLY && local_phase_active) {
+            /* Add sensor to database if within range */
+            if (num_sensors < WSN_DEPLOYMENT_CONF_MAX_SENSORS) {
+                sensor_db[num_sensors].sensor_id = reply->sensor_id;
+                sensor_db[num_sensors].x_coord = reply->x_coord;
+                sensor_db[num_sensors].y_coord = reply->y_coord;
+                sensor_db[num_sensors].sensor_status = reply->sensor_status;
+                num_sensors++;
+
+                LOG_INFO("Added Sensor_%d to Sensor_DB: (%d, %d), status: %d\n",
+                         reply->sensor_id, reply->x_coord, reply->y_coord, reply->sensor_status);
+            }
+        }
+    } else {
+        LOG_INFO("Robot_%d: unexpected message size %d (expected LA_assign_size %d or Sensor_reply_size %d)\n",
+                 robot_id, datalen, (int)sizeof(la_assignment_msg_t), (int)sizeof(sensor_reply_msg_t));
+            }
+        }
+    } else {
+        LOG_INFO("Robot_%d: unexpected message type %d\n", robot_id, assignment->msg_type);
+    }
+}
+/* Handle sensor replies during topology discovery */
+else if (datalen == sizeof(sensor_reply_msg_t)) {
+    sensor_reply_msg_t *reply = (sensor_reply_msg_t *)data;
+
+    if (reply->msg_type == WSN_MSG_TYPE_SENSOR_REPLY && local_phase_active) {
+        /* Add sensor to database if within range */
+        if (num_sensors < WSN_DEPLOYMENT_CONF_MAX_SENSORS) {
+            sensor_db[num_sensors].sensor_id = reply->sensor_id;
+            sensor_db[num_sensors].x_coord = reply->x_coord;
+            sensor_db[num_sensors].y_coord = reply->y_coord;
+            sensor_db[num_sensors].sensor_status = reply->sensor_status;
+            num_sensors++;
+
+            LOG_INFO("Added Sensor_%d to Sensor_DB: (%d, %d), status: %d\n",
+                     reply->sensor_id, reply->x_coord, reply->y_coord, reply->sensor_status);
+        }
+    }
+} else {
+    LOG_INFO("Robot_%d: unexpected message size %d (expected %d)\n",
+             robot_id, datalen, (int)sizeof(la_assignment_msg_t));
                          robot_id, assignment->robot_id);
             }
         } else {
@@ -752,14 +814,18 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
             etimer_set(&timer, 30 * CLOCK_SECOND);
         }
         else if (ev == PROCESS_EVENT_CONTINUE) {
-            /* Handle LA assignment from base station */
-            if (data != NULL) {
-                la_assignment_msg_t *assignment = (la_assignment_msg_t *)data;
-                
-                if (assignment->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT) {
-                    LOG_INFO("Robot_%d processing LA assignment in main process\n", robot_id);
-                    handle_la_assignment(assignment->la_id, assignment->center_x, assignment->center_y);
-                }
+            LOG_INFO("Robot_%d: Received PROCESS_EVENT_CONTINUE.\n", robot_id);
+            // Data passed to process_post was NULL, we use pending_assignment
+            if (assignment_received && pending_assignment.msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT) {
+                 LOG_INFO("Robot_%d: Processing LA assignment for LA_%d from pending_assignment in main process loop.\n",
+                         robot_id, pending_assignment.la_id);
+                handle_la_assignment(pending_assignment.la_id,
+                                     pending_assignment.center_x,
+                                     pending_assignment.center_y);
+                // Reset assignment_received for the next one
+                assignment_received = false;
+            } else {
+                LOG_WARN("Robot_%d: PROCESS_EVENT_CONTINUE received but no valid pending assignment or assignment_received=false.\n", robot_id);
             }
         }
     }
