@@ -226,7 +226,7 @@ static bool assign_la_to_robot(uint8_t robot_id)
             robot_db[num_robots].assigned_la_id = target_la_id;
             num_robots++; // Increment count of distinct robots managed
         } else {
-            LOG_ERROR("Cannot assign LA to Robot_%d: robot_db is full (max %d robots).\n", robot_id, WSN_DEPLOYMENT_CONF_MAX_ROBOTS);
+            LOG_ERR("Cannot assign LA to Robot_%d: robot_db is full (max %d robots).\n", robot_id, WSN_DEPLOYMENT_CONF_MAX_ROBOTS);
             return false;
         }
     }

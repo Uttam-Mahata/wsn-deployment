@@ -622,9 +622,9 @@ static void udp_rx_callback(struct simple_udp_connection *c,
         char buf[40];
         snprintf(buf, sizeof(buf), "Msg hex: %02x %02x %02x %02x",
                  data[0],
-                 datalen > 1 ? data[1] : 0,
-                 datalen > 2 ? data[2] : 0,
-                 datalen > 3 ? data[3] : 0);
+                 datalen > 1 ? data[1] : (uint8_t)0,
+                 datalen > 2 ? data[2] : (uint8_t)0,
+                 datalen > 3 ? data[3] : (uint8_t)0);
         LOG_INFO("%s\n", buf);
     }
     
@@ -683,61 +683,8 @@ static void udp_rx_callback(struct simple_udp_connection *c,
     } else {
         LOG_INFO("Robot_%d: unexpected message size %d (expected LA_assign_size %d or Sensor_reply_size %d)\n",
                  robot_id, datalen, (int)sizeof(la_assignment_msg_t), (int)sizeof(sensor_reply_msg_t));
-            }
-        }
-    } else {
-        LOG_INFO("Robot_%d: unexpected message type %d\n", robot_id, assignment->msg_type);
     }
 }
-/* Handle sensor replies during topology discovery */
-else if (datalen == sizeof(sensor_reply_msg_t)) {
-    sensor_reply_msg_t *reply = (sensor_reply_msg_t *)data;
-
-    if (reply->msg_type == WSN_MSG_TYPE_SENSOR_REPLY && local_phase_active) {
-        /* Add sensor to database if within range */
-        if (num_sensors < WSN_DEPLOYMENT_CONF_MAX_SENSORS) {
-            sensor_db[num_sensors].sensor_id = reply->sensor_id;
-            sensor_db[num_sensors].x_coord = reply->x_coord;
-            sensor_db[num_sensors].y_coord = reply->y_coord;
-            sensor_db[num_sensors].sensor_status = reply->sensor_status;
-            num_sensors++;
-
-            LOG_INFO("Added Sensor_%d to Sensor_DB: (%d, %d), status: %d\n",
-                     reply->sensor_id, reply->x_coord, reply->y_coord, reply->sensor_status);
-        }
-    }
-} else {
-    LOG_INFO("Robot_%d: unexpected message size %d (expected %d)\n",
-             robot_id, datalen, (int)sizeof(la_assignment_msg_t));
-                         robot_id, assignment->robot_id);
-            }
-        } else {
-            LOG_INFO("Robot_%d: unexpected message type %d\n", robot_id, assignment->msg_type);
-        }
-    }
-    /* Handle sensor replies during topology discovery */
-    else if (datalen == sizeof(sensor_reply_msg_t)) {
-        sensor_reply_msg_t *reply = (sensor_reply_msg_t *)data;
-        
-        if (reply->msg_type == WSN_MSG_TYPE_SENSOR_REPLY && local_phase_active) {
-            /* Add sensor to database if within range */
-            if (num_sensors < WSN_DEPLOYMENT_CONF_MAX_SENSORS) {
-                sensor_db[num_sensors].sensor_id = reply->sensor_id;
-                sensor_db[num_sensors].x_coord = reply->x_coord;
-                sensor_db[num_sensors].y_coord = reply->y_coord;
-                sensor_db[num_sensors].sensor_status = reply->sensor_status;
-                num_sensors++;
-                
-                LOG_INFO("Added Sensor_%d to Sensor_DB: (%d, %d), status: %d\n",
-                         reply->sensor_id, reply->x_coord, reply->y_coord, reply->sensor_status);
-            }
-        }
-    } else {
-        LOG_INFO("Robot_%d: unexpected message size %d (expected %d)\n", 
-                 robot_id, datalen, (int)sizeof(la_assignment_msg_t));
-    }
-}
-
 /*---------------------------------------------------------------------------*/
 /* Print robot statistics */
 static void print_robot_statistics(void)
