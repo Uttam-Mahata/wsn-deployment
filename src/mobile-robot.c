@@ -604,7 +604,7 @@ static void handle_la_assignment(uint8_t la_id, int16_t center_x, int16_t center
 }
 
 /*---------------------------------------------------------------------------*/
-/* UDP callback function with enhanced debugging - FIXED VERSION */
+/* UDP callback function - IMPROVED VERSION */
 static void udp_rx_callback(struct simple_udp_connection *c,
                            const uip_ipaddr_t *sender_addr,
                            uint16_t sender_port,
@@ -615,6 +615,11 @@ static void udp_rx_callback(struct simple_udp_connection *c,
 {
     LOG_INFO("Robot_%d received UDP message from port %d, length: %d\n", 
              robot_id, sender_port, datalen);
+    
+    /* Print sender address for debugging */
+    LOG_INFO("Sender address: ");
+    LOG_INFO_6ADDR(sender_addr);
+    LOG_INFO_("\n");
     
     /* Print first few bytes for debugging */
     if (datalen > 0) {
@@ -634,9 +639,9 @@ static void udp_rx_callback(struct simple_udp_connection *c,
                  assignment->center_x, assignment->center_y);
         
         if (assignment->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT) {
-            /* Accept assignment for this robot or broadcast (robot_id = 0) */
-            if (assignment->robot_id == robot_id || assignment->robot_id == 0) {
-                LOG_INFO("*** Robot_%d ACCEPTING LA assignment: LA_%d at (%d, %d) ***\n",
+            /* Accept assignment for this robot */
+            if (assignment->robot_id == robot_id) {
+                LOG_INFO("*** Robot_%d ACCEPTING DIRECT LA assignment: LA_%d at (%d, %d) ***\n",
                          robot_id, assignment->la_id, assignment->center_x, assignment->center_y);
                 
                 assignment_received = true;
@@ -671,8 +676,8 @@ static void udp_rx_callback(struct simple_udp_connection *c,
             }
         }
     } else {
-        LOG_INFO("Robot_%d: unexpected message size %d (expected %d)\n", 
-                 robot_id, datalen, (int)sizeof(la_assignment_msg_t));
+        LOG_INFO("Robot_%d: unexpected message size %d (expected %d or %d)\n", 
+                 robot_id, datalen, (int)sizeof(la_assignment_msg_t), (int)sizeof(sensor_reply_msg_t));
     }
 }
 
@@ -706,13 +711,13 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
     /* Initialize robot */
     robot_id = node_id;
     
-    /* Set initial position based on node ID */
+    /* Set initial position to match simulation configuration */
     if (robot_id == 2) {
-        current_position.x = 433; 
-        current_position.y = 531;
+        current_position.x = 100;  /* LA_1 center from simulation */
+        current_position.y = 100;
     } else if (robot_id == 3) {
-        current_position.x = 500;
-        current_position.y = 500;
+        current_position.x = 900;  /* LA_25 center from simulation */
+        current_position.y = 900;
     } else {
         /* Default position for other robots */
         current_position.x = 500;
@@ -725,21 +730,21 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
     LOG_INFO("Robot_%d initial position: (%d, %d)\n", robot_id, current_position.x, current_position.y);
     LOG_INFO("Initial sensor stock: %d\n", stock_rs);
     
-    /* Initialize UDP connection */
-    simple_udp_register(&udp_conn, UDP_SERVER_PORT, NULL,
-                       UDP_CLIENT_PORT, udp_rx_callback);
+    /* Initialize UDP connection with swapped ports for proper communication */
+    simple_udp_register(&udp_conn, UDP_CLIENT_PORT, NULL,
+                       UDP_SERVER_PORT, udp_rx_callback);
     
     LOG_INFO("Robot_%d UDP connection registered - listening on port %d, sending to port %d\n",
-             robot_id, UDP_SERVER_PORT, UDP_CLIENT_PORT);
+             robot_id, UDP_CLIENT_PORT, UDP_SERVER_PORT);
     
-    /* Wait for network to stabilize */
-    etimer_set(&timer, 15 * CLOCK_SECOND);
+    /* Wait for network to stabilize - reduced wait time */
+    etimer_set(&timer, 10 * CLOCK_SECOND);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
     
     LOG_INFO("Robot_%d ready and waiting for LA assignment from BS\n", robot_id);
     
-    /* Set up periodic statistics reporting */
-    etimer_set(&timer, 30 * CLOCK_SECOND);
+    /* Set up more frequent statistics reporting to monitor communication */
+    etimer_set(&timer, 10 * CLOCK_SECOND);
     
     while (1) {
         PROCESS_WAIT_EVENT();
@@ -748,8 +753,17 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
             update_robot_energy();
             print_robot_statistics();
             
+            /* Check if we've received an assignment and process it */
+            if (assignment_received && !local_phase_active) {
+                LOG_INFO("Robot_%d processing delayed LA assignment\n", robot_id);
+                handle_la_assignment(pending_assignment.la_id, 
+                                   pending_assignment.center_x, 
+                                   pending_assignment.center_y);
+                assignment_received = false; /* Reset flag */
+            }
+            
             /* Reset timer */
-            etimer_set(&timer, 30 * CLOCK_SECOND);
+            etimer_set(&timer, 10 * CLOCK_SECOND);
         }
         else if (ev == PROCESS_EVENT_CONTINUE) {
             /* Handle LA assignment from base station */
@@ -766,4 +780,5 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
     
     PROCESS_END();
 }
+
 /*---------------------------------------------------------------------------*/

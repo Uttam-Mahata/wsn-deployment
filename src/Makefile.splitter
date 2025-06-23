@@ -1,0 +1,33 @@
+CC = gcc
+CFLAGS = -Wall -Wextra -std=c99
+TARGET = log_splitter
+SOURCE = log_splitter.c
+
+# Default target
+all: $(TARGET)
+
+# Compile the log splitter
+$(TARGET): $(SOURCE)
+	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCE)
+	@echo "Log splitter compiled successfully!"
+	@echo "Usage: ./$(TARGET)"
+
+# Clean up compiled files
+clean:
+	rm -f $(TARGET)
+	rm -f loglistener_part_*.txt
+	@echo "Cleaned up compiled files and output files"
+
+# Run the splitter (requires loglistener.txt in current directory)
+run: $(TARGET)
+	./$(TARGET)
+
+# Help target
+help:
+	@echo "Available targets:"
+	@echo "  all     - Compile the log splitter"
+	@echo "  clean   - Remove compiled files and output files"
+	@echo "  run     - Compile and run the log splitter"
+	@echo "  help    - Show this help message"
+
+.PHONY: all clean run help
