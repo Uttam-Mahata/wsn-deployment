@@ -4,7 +4,7 @@ all: $(CONTIKI_PROJECT)
 
 # Path to Contiki-NG
 # Allow overriding with an environment variable, otherwise default to a common path or a relative one.
-CONTIKI ?= /opt/contiki-ng
+CONTIKI ?= /home/uttam/contiki-ng
 # If /opt/contiki-ng is not available, one might try a relative path assuming contiki-ng is cloned peer to this project's parent
 # CONTIKI ?= ../../contiki-ng
 
