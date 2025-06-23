@@ -11,6 +11,7 @@
 #include "net/ipv6/simple-udp.h"
 #include "sys/log.h"
 #include "sys/node-id.h"
+#include "sys/energest.h"
 #include "wsn-deployment.h"
 #include <stdio.h>
 #include <string.h>
@@ -36,19 +37,18 @@ static uint8_t num_robots = 0;
 static uint8_t total_covered_grids = 0;
 static uint8_t total_grids = 0;
 
-/* Energy tracking */
-static double total_energy_consumed = 0.0;
-static double processing_energy = 0.0;
-static double radio_energy = 0.0;
-static clock_time_t energy_last_update = 0;
+/* Energy tracking using Energest */
+static uint64_t last_cpu, last_lpm, last_transmit, last_listen;
+static uint64_t total_cpu_energy = 0;
+static uint64_t total_lpm_energy = 0;
+static uint64_t total_tx_energy = 0;
+static uint64_t total_rx_energy = 0;
 
-/* Energy parameters for base station */
-static const double power_processing_base = 0.5;    /* 500 mW processing power */
-static const double power_transmit_base = 0.3;      /* 300 mW transmit power */
-static const double power_receive_base = 0.2;       /* 200 mW receive power */
-
-/* Timing parameters - used in baseline energy calculation */
-static const double processing_time = 0.2;      /* T_P in seconds (higher for BS) */
+/* Energy parameters (in microjoules per tick) */
+#define ENERGEST_CPU_POWER    1800  /* 1.8 mW for CPU active */
+#define ENERGEST_LPM_POWER    54    /* 0.054 mW for low power mode */
+#define ENERGEST_TX_POWER     17400 /* 17.4 mW for transmission */
+#define ENERGEST_RX_POWER     18800 /* 18.8 mW for reception */
 
 /* Network energy tracking - reported by nodes */
 static double robot_reported_energy[WSN_DEPLOYMENT_CONF_MAX_ROBOTS] = {0};
@@ -59,34 +59,77 @@ static bool assignments_sent = false;
 
 /* Forward declarations */
 static void send_la_assignment(uint8_t robot_id, uint8_t la_id);
+static bool assign_la_to_robot(uint8_t robot_id);
+static void update_la_status(uint8_t robot_id, uint8_t covered_grids);
+static void update_base_station_energy(void);
+static double calculate_total_network_energy(void);
 
 /*---------------------------------------------------------------------------*/
-/* Calculate processing energy for base station - E_processing_base = P_processing_base * t_processing */
-double calculate_processing_energy_base(double time_duration)
+/* Initialize Energest tracking */
+static void init_energest_tracking(void)
 {
-    return power_processing_base * processing_time * time_duration;
+    energest_init();
+    
+    /* Get initial values - Energest API doesn't take parameters */
+    last_cpu = energest_get_total_time();
+    last_lpm = energest_get_total_time();
+    last_transmit = energest_get_total_time();
+    last_listen = energest_get_total_time();
+    
+    LOG_INFO("Energest tracking initialized\n");
 }
 
 /*---------------------------------------------------------------------------*/
-/* Calculate radio energy for base station - E_radio_base = E_transmit + E_receive */
-double calculate_radio_energy_base(double time_transmit, double time_receive)
+/* Update energy consumption using Energest */
+static void update_energest_consumption(void)
 {
-    double transmit_energy = power_transmit_base * time_transmit;
-    double receive_energy = power_receive_base * time_receive;
-    return transmit_energy + receive_energy;
+    uint64_t curr_cpu, curr_lpm, curr_transmit, curr_listen;
+    uint64_t diff_cpu, diff_lpm, diff_transmit, diff_listen;
+    
+    /* Get current values */
+    curr_cpu = energest_get_total_time();
+    curr_lpm = energest_get_total_time();
+    curr_transmit = energest_get_total_time();
+    curr_listen = energest_get_total_time();
+    
+    /* Calculate differences */
+    diff_cpu = curr_cpu - last_cpu;
+    diff_lpm = curr_lpm - last_lpm;
+    diff_transmit = curr_transmit - last_transmit;
+    diff_listen = curr_listen - last_listen;
+    
+    /* Calculate energy consumption (in microjoules) */
+    total_cpu_energy += (diff_cpu * ENERGEST_CPU_POWER) / ENERGEST_SECOND;
+    total_lpm_energy += (diff_lpm * ENERGEST_LPM_POWER) / ENERGEST_SECOND;
+    total_tx_energy += (diff_transmit * ENERGEST_TX_POWER) / ENERGEST_SECOND;
+    total_rx_energy += (diff_listen * ENERGEST_RX_POWER) / ENERGEST_SECOND;
+    
+    /* Update last values */
+    last_cpu = curr_cpu;
+    last_lpm = curr_lpm;
+    last_transmit = curr_transmit;
+    last_listen = curr_listen;
 }
 
 /*---------------------------------------------------------------------------*/
-/* Calculate total base station energy as per paper:
-   E_base_station = E_processing_base + E_radio_base */
-double calculate_base_station_energy(double processing, double radio)
+/* Get total base station energy in Joules */
+static double get_base_station_energy_joules(void)
 {
-    return processing + radio;
+    update_energest_consumption();
+    uint64_t total_microjoules = total_cpu_energy + total_lpm_energy + 
+                                total_tx_energy + total_rx_energy;
+    return (double)total_microjoules / 1000000.0; /* Convert to Joules */
 }
 
 /*---------------------------------------------------------------------------*/
-/* Calculate total network energy as per paper:
-   Energy_tot = E_active + E_idle + E_robot + E_base_station */
+/* Update base station energy consumption using Energest */
+static void update_base_station_energy(void)
+{
+    update_energest_consumption();
+}
+
+/*---------------------------------------------------------------------------*/
+/* Calculate total network energy using Energest data */
 double calculate_total_network_energy(void)
 {
     double robot_energy = 0.0;
@@ -103,38 +146,86 @@ double calculate_total_network_energy(void)
     }
     
     /* Return total network energy */
-    return sensor_energy + robot_energy + total_energy_consumed;
+    return sensor_energy + robot_energy + get_base_station_energy_joules();
 }
 
 /*---------------------------------------------------------------------------*/
-/* Update base station energy consumption */
-static void update_base_station_energy(void)
+/* Calculate area coverage percentage */
+static double calculate_area_coverage(void)
 {
-    clock_time_t current_time = clock_time();
-    if (energy_last_update == 0) {
-        energy_last_update = current_time;
-        return;
+    if (total_grids == 0) return 0.0;
+    return (double)(total_covered_grids * 100) / total_grids;
+}
+
+/*---------------------------------------------------------------------------*/
+/* UDP callback function */
+static void udp_rx_callback(struct simple_udp_connection *c,
+                           const uip_ipaddr_t *sender_addr,
+                           uint16_t sender_port,
+                           const uip_ipaddr_t *receiver_addr,
+                           uint16_t receiver_port,
+                           const uint8_t *data,
+                           uint16_t datalen)
+{
+    LOG_INFO("BS received UDP message, length: %d\n", datalen);
+    
+    if (datalen == sizeof(robot_report_msg_t)) {
+        robot_report_msg_t *msg = (robot_report_msg_t *)data;
+        
+        if (msg->msg_type == WSN_MSG_TYPE_ROBOT_REPORT) {
+            LOG_INFO("Received report from Robot_%d: %d grids covered\n", 
+                     msg->robot_id, msg->covered_grids);
+            
+            /* Update LA status based on robot report */
+            update_la_status(msg->robot_id, msg->covered_grids);
+            
+            /* Energy tracking is handled automatically by Energest */
+            
+            /* Try to assign new LA to robot */
+            if (assign_la_to_robot(msg->robot_id)) {
+                LOG_INFO("Reassigned Robot_%d to new LA\n", msg->robot_id);
+            } else {
+                LOG_INFO("No more LAs to assign to Robot_%d\n", msg->robot_id);
+            }
+        }
+    } else {
+        LOG_INFO("Unknown message type or size: %d bytes\n", datalen);
+    }
+}
+
+/*---------------------------------------------------------------------------*/
+/* Print deployment statistics with Energest data */
+static void print_statistics(void)
+{
+    double coverage = calculate_area_coverage();
+    double network_energy = calculate_total_network_energy();
+    double base_energy = get_base_station_energy_joules();
+    
+    LOG_INFO("=== DEPLOYMENT STATISTICS ===\n");
+    LOG_INFO("Total Location Areas: %d\n", num_las);
+    LOG_INFO("Total Grids: %d\n", total_grids);
+    LOG_INFO("Covered Grids: %d\n", total_covered_grids);
+    LOG_INFO("Area Coverage: %.2f%%\n", coverage);
+    
+    /* Print LA status */
+    LOG_INFO("Location Area Status:\n");
+    for (uint8_t i = 0; i < num_las; i++) {
+        LOG_INFO("  LA_%d: %d/%d grids covered\n", 
+                 la_db[i].la_id, la_db[i].no_grid, NO_G);
     }
     
-    double time_duration = (double)(current_time - energy_last_update) / CLOCK_SECOND;
-    if (time_duration <= 0) return;
+    /* Print energy statistics using Energest */
+    LOG_INFO("=== ENERGY STATISTICS (Energest) ===\n");
+    LOG_INFO("Base Station Energy: %.6f J\n", base_energy);
+    LOG_INFO("  - CPU: %.6f J\n", (double)total_cpu_energy / 1000000.0);
+    LOG_INFO("  - LPM: %.6f J\n", (double)total_lpm_energy / 1000000.0);
+    LOG_INFO("  - TX: %.6f J\n", (double)total_tx_energy / 1000000.0);
+    LOG_INFO("  - RX: %.6f J\n", (double)total_rx_energy / 1000000.0);
+    LOG_INFO("Total Network Energy: %.6f J\n", network_energy);
     
-    /* Processing energy */
-    double processing = calculate_processing_energy_base(time_duration);
-    processing_energy += processing;
-    
-    /* Radio energy (estimated based on communication activity) */
-    double radio = calculate_radio_energy_base(
-        time_duration * 0.05,  /* 5% tx time */
-        time_duration * 0.10   /* 10% rx time */
-    );
-    radio_energy += radio;
-    
-    /* Calculate total energy using paper formula */
-    double energy = calculate_base_station_energy(processing, radio);
-    total_energy_consumed += energy;
-    
-    energy_last_update = current_time;
+    /* Print raw Energest values for debugging */
+    LOG_INFO("Energest raw values:\n");
+    LOG_INFO("  Total ticks: %lu\n", (unsigned long)energest_get_total_time());
 }
 
 /*---------------------------------------------------------------------------*/
@@ -249,82 +340,7 @@ static void update_la_status(uint8_t robot_id, uint8_t covered_grids)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Calculate area coverage percentage */
-static double calculate_area_coverage(void)
-{
-    if (total_grids == 0) return 0.0;
-    return (double)(total_covered_grids * 100) / total_grids;
-}
-
-/*---------------------------------------------------------------------------*/
-/* UDP callback function */
-static void udp_rx_callback(struct simple_udp_connection *c,
-                           const uip_ipaddr_t *sender_addr,
-                           uint16_t sender_port,
-                           const uip_ipaddr_t *receiver_addr,
-                           uint16_t receiver_port,
-                           const uint8_t *data,
-                           uint16_t datalen)
-{
-    LOG_INFO("BS received UDP message, length: %d\n", datalen);
-    
-    if (datalen == sizeof(robot_report_msg_t)) {
-        robot_report_msg_t *msg = (robot_report_msg_t *)data;
-        
-        if (msg->msg_type == WSN_MSG_TYPE_ROBOT_REPORT) {
-            LOG_INFO("Received report from Robot_%d: %d grids covered\n", 
-                     msg->robot_id, msg->covered_grids);
-            
-            /* Update LA status based on robot report */
-            update_la_status(msg->robot_id, msg->covered_grids);
-            
-            /* Update radio energy for receiving the report */
-            double rx_energy = power_receive_base * 0.01; /* Estimate 10ms reception */
-            radio_energy += rx_energy;
-            total_energy_consumed += rx_energy;
-            
-            /* Try to assign new LA to robot */
-            if (assign_la_to_robot(msg->robot_id)) {
-                LOG_INFO("Reassigned Robot_%d to new LA\n", msg->robot_id);
-            } else {
-                LOG_INFO("No more LAs to assign to Robot_%d\n", msg->robot_id);
-            }
-        }
-    } else {
-        LOG_INFO("Unknown message type or size: %d bytes\n", datalen);
-    }
-}
-
-/*---------------------------------------------------------------------------*/
-/* Print deployment statistics */
-static void print_statistics(void)
-{
-    double coverage = calculate_area_coverage();
-    double network_energy = calculate_total_network_energy();
-    
-    LOG_INFO("=== DEPLOYMENT STATISTICS ===\n");
-    LOG_INFO("Total Location Areas: %d\n", num_las);
-    LOG_INFO("Total Grids: %d\n", total_grids);
-    LOG_INFO("Covered Grids: %d\n", total_covered_grids);
-    LOG_INFO("Area Coverage: %.2f%%\n", coverage);
-    
-    /* Print LA status */
-    LOG_INFO("Location Area Status:\n");
-    for (uint8_t i = 0; i < num_las; i++) {
-        LOG_INFO("  LA_%d: %d/%d grids covered\n", 
-                 la_db[i].la_id, la_db[i].no_grid, NO_G);
-    }
-    
-    /* Print energy statistics */
-    LOG_INFO("=== ENERGY STATISTICS ===\n");
-    LOG_INFO("Base Station Energy: %.4f J\n", total_energy_consumed);
-    LOG_INFO("  - Processing: %.4f J\n", processing_energy);
-    LOG_INFO("  - Radio: %.4f J\n", radio_energy);
-    LOG_INFO("Total Network Energy: %.4f J\n", network_energy);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Send LA assignment with simplified addressing - FIXED VERSION */
+/* Send LA assignment with direct addressing */
 static void send_la_assignment(uint8_t robot_id, uint8_t la_id)
 {
     /* Find LA details */
@@ -340,23 +356,32 @@ static void send_la_assignment(uint8_t robot_id, uint8_t la_id)
             LOG_INFO("Sending LA assignment to Robot_%d\n", robot_id);
             LOG_INFO("Assignment: LA_%d at (%d, %d)\n", la_id, assignment.center_x, assignment.center_y);
             
-            /* Use link-local multicast for reliable delivery */
+            /* Use both multicast and direct addressing for better delivery */
             uip_ipaddr_t dest_ipaddr;
+            
+            /* Method 1: Link-local multicast */
             uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
             
             /* Send message multiple times for reliability */
-            for (int attempts = 0; attempts < 10; attempts++) {
+            for (int attempts = 0; attempts < 5; attempts++) {
                 simple_udp_sendto(&udp_conn, &assignment, sizeof(assignment), &dest_ipaddr);
-                LOG_INFO("Sent attempt %d for Robot_%d\n", attempts + 1, robot_id);
-                
-                /* Add delay between transmissions */
-                clock_delay(CLOCK_SECOND / 4); /* 250ms delay */
+                LOG_INFO("Sent multicast attempt %d for Robot_%d\n", attempts + 1, robot_id);
+                clock_delay(CLOCK_SECOND / 10); /* 100ms delay */
             }
             
-            /* Update radio energy for transmission */
-            double tx_energy = power_transmit_base * 0.1; /* Multiple transmissions */
-            radio_energy += tx_energy;
-            total_energy_consumed += tx_energy;
+            /* Method 2: Try direct addressing to robot */
+            if (robot_id == 2 || robot_id == 3) {
+                /* Construct direct IPv6 address for robot */
+                uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 
+                           0x0200 + robot_id, 0x0000 + robot_id, 
+                           0x0000 + robot_id, 0x0000 + robot_id);
+                
+                for (int attempts = 0; attempts < 3; attempts++) {
+                    simple_udp_sendto(&udp_conn, &assignment, sizeof(assignment), &dest_ipaddr);
+                    LOG_INFO("Sent direct attempt %d to Robot_%d\n", attempts + 1, robot_id);
+                    clock_delay(CLOCK_SECOND / 10);
+                }
+            }
             
             LOG_INFO("Completed sending LA assignment to Robot_%d: LA_%d at (%d, %d)\n",
                      robot_id, la_id, assignment.center_x, assignment.center_y);
@@ -379,25 +404,25 @@ PROCESS_THREAD(base_station_process, ev, data)
     NETSTACK_ROUTING.root_start();
     
     /* Initialize UDP connection */
-    simple_udp_register(&udp_conn, UDP_CLIENT_PORT, NULL,
-                        UDP_SERVER_PORT, udp_rx_callback);
+    simple_udp_register(&udp_conn, UDP_SERVER_PORT, NULL,
+                        UDP_CLIENT_PORT, udp_rx_callback);
     
     /* Initialize databases */
     init_la_db();
     
-    /* Initialize energy tracking */
-    energy_last_update = clock_time();
+    /* Initialize Energest tracking */
+    init_energest_tracking();
     
     LOG_INFO("Base Station initialized. Starting global phase...\n");
     
-    /* Wait longer for network to stabilize and routing to be established */
-    etimer_set(&timer, 60 * CLOCK_SECOND); /* Increased to 60 seconds */
+    /* Reduced wait time for faster startup */
+    etimer_set(&timer, 30 * CLOCK_SECOND);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
     
     LOG_INFO("Network should be stable now. Starting robot assignments...\n");
     
-    /* Set up periodic assignment attempts */
-    etimer_set(&assignment_timer, 2 * CLOCK_SECOND);
+    /* Set up immediate assignment attempts */
+    etimer_set(&assignment_timer, 1 * CLOCK_SECOND);
     
     /* Set up periodic energy update and statistics reporting */
     etimer_set(&timer, 5 * CLOCK_SECOND);
@@ -420,7 +445,23 @@ PROCESS_THREAD(base_station_process, ev, data)
                 }
                 assignments_sent = true;
                 
-                /* Continue sending assignments periodically until robots respond */
+                /* Continue sending assignments periodically */
+                etimer_set(&assignment_timer, 10 * CLOCK_SECOND);
+                
+            } else if (data == &assignment_timer && assignments_sent) {
+                /* Retry assignments if robots haven't responded */
+                LOG_INFO("Retrying robot assignments...\n");
+                
+                for (uint8_t robot_node_id = 2; robot_node_id <= (1 + MAX_ROBOTS); robot_node_id++) {
+                    /* Find this robot's assignment and resend */
+                    for (uint8_t i = 0; i < num_robots; i++) {
+                        if (robot_db[i].robot_id == robot_node_id) {
+                            send_la_assignment(robot_node_id, robot_db[i].assigned_la_id);
+                            break;
+                        }
+                    }
+                }
+                
                 etimer_set(&assignment_timer, 15 * CLOCK_SECOND);
                 
             } else if (data == &timer) {

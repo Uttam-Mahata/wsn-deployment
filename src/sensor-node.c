@@ -55,7 +55,7 @@ static const double power_baseline = 0.003;     /* 3 mW baseline power */
 static const double power_processing = 0.020;   /* 20 mW processing power */
 static const double power_transmit = 0.050;     /* 50 mW transmit power */
 static const double power_receive = 0.030;      /* 30 mW receive power */
-static const double mu = 0.0005;                /* Energy coefficient for sensing as per paper */
+static const double mu = 0.0005;                /* Energy coefficient for sensing */
 
 /* Timing parameters from paper */
 static const double interval_count = 10.0;      /* I_C */
