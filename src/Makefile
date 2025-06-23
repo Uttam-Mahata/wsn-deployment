@@ -3,7 +3,7 @@ CONTIKI_PROJECT = base-station mobile-robot sensor-node
 all: $(CONTIKI_PROJECT)
 
 # Path to Contiki-NG
-CONTIKI = /home/uttammahata/storage/contiki-ng
+CONTIKI = /home/uttam/contiki-ng
 
 # Add math library for calculations
 TARGET_LIBFILES += -lm
