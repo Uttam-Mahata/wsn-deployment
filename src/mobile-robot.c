@@ -68,6 +68,34 @@ static const double power_transmit_robot = 0.2;    /* 200 mW transmit power */
 static const double power_receive_robot = 0.15;    /* 150 mW receive power */
 static const double tau = 0.0005;                  /* Energy coefficient for movement as per paper */
 
+/* Function declarations */
+static void handle_la_assignment(uint8_t la_id, int16_t center_x, int16_t center_y);
+static void send_assignment_ack_to_bs(void);
+static void send_ready_signal_to_bs(void);
+static void send_report_to_bs(void);
+static void execute_local_phase(uint8_t la_id, position_t la_center);
+static void topology_discovery_phase(position_t la_center);
+static void dispersion_phase(void);
+static void init_grid_db(position_t la_center);
+static uint8_t find_nearest_uncovered_grid(void);
+static void move_robot_to_position(position_t target);
+static uint8_t count_sensors_in_grid(uint8_t grid_idx);
+static void dispersion_case1(uint8_t grid_idx);
+static void dispersion_case2(uint8_t grid_idx);
+static void dispersion_case3(uint8_t grid_idx);
+static void dispersion_case4(uint8_t grid_idx);
+static void update_robot_energy(void);
+static void add_mobility_energy(double distance);
+static double calculate_total_robot_energy(void);
+static void print_robot_statistics(void);
+static void udp_rx_callback(struct simple_udp_connection *c,
+                           const uip_ipaddr_t *sender_addr,
+                           uint16_t sender_port,
+                           const uip_ipaddr_t *receiver_addr,
+                           uint16_t receiver_port,
+                           const uint8_t *data,
+                           uint16_t datalen);
+
 /*---------------------------------------------------------------------------*/
 /* Calculate distance between two positions */
 double calculate_distance(position_t pos1, position_t pos2)
@@ -513,12 +541,69 @@ static void dispersion_phase(void)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Count covered grids and send report to base station */
+/* Send report to base station with improved reliability */
 static void send_report_to_bs(void)
 {
-    uint8_t covered_grids = 0;
+    robot_report_msg_t report;
+    report.msg_type = WSN_MSG_TYPE_ROBOT_REPORT;
+    report.robot_id = robot_id;
+    report.covered_grids = 0;
     
-    /* Search Grid_DB for records where Grid_Status = 1 */
+    /* Count covered grids */
+    for (uint8_t i = 0; i < num_grids; i++) {
+        if (grid_db[i].grid_status == 1) {
+            report.covered_grids++;
+        }
+    }
+    
+    uip_ipaddr_t dest_ipaddr;
+    
+    LOG_INFO("Robot_%d sending report to BS: %d grids covered\n", robot_id, report.covered_grids);
+    
+    /* Send using multicast with multiple attempts for reliability */
+    uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
+    for (int attempts = 0; attempts < 5; attempts++) {
+        simple_udp_sendto(&udp_conn, &report, sizeof(report), &dest_ipaddr);
+        LOG_INFO("Sent report attempt %d to BS\n", attempts + 1);
+        clock_delay(CLOCK_SECOND / 10); /* 100ms delay between attempts */
+    }
+    
+    /* Also try direct addressing to base station */
+    uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 0x0201, 0x0001, 0x0001, 0x0001);
+    for (int attempts = 0; attempts < 3; attempts++) {
+        simple_udp_sendto(&udp_conn, &report, sizeof(report), &dest_ipaddr);
+        LOG_INFO("Sent direct report attempt %d to BS\n", attempts + 1);
+        clock_delay(CLOCK_SECOND / 10);
+    }
+    
+    LOG_INFO("Robot_%d completed sending report to BS\n", robot_id);
+}
+
+/*---------------------------------------------------------------------------*/
+/* Execute local phase in assigned LA - ALGORITHM 2 IMPLEMENTATION */
+static void execute_local_phase(uint8_t la_id, position_t la_center)
+{
+    LOG_INFO("\n=== LOCAL PHASE START ===\n");
+    LOG_INFO("Robot_%d executing local phase in LA_%d\n", robot_id, la_id);
+    
+    current_la_id = la_id;
+    local_phase_active = true;
+    
+    /* Algorithm 2 Step 1-2: Divide LA into NO_G grids and insert into Grid_DB */
+    init_grid_db(la_center);
+    
+    /* Algorithm 2 Step 3: Topology Discovery Phase */
+    topology_discovery_phase(la_center);
+    
+    /* Algorithm 2 Step 4: Initialize NO_P = NO_G */
+    no_p = num_grids;
+    LOG_INFO("Initialized NO_P = %d (number of permissible moves)\n", no_p);
+    
+    /* Algorithm 2 Step 5: Dispersion Phase */
+    dispersion_phase();
+    
+    /* Algorithm 2 Step 6-8: Count covered grids and send report */
+    uint8_t covered_grids = 0;
     for (uint8_t i = 0; i < num_grids; i++) {
         if (grid_db[i].grid_status == 1) {
             covered_grids++;
@@ -533,56 +618,14 @@ static void send_report_to_bs(void)
     LOG_INFO("Total energy consumed: %.4f J\n", total_energy_consumed);
     LOG_INFO("Distance traveled: %.2f m\n", distance_traveled);
     
-    /* Send Robot_pM message to BS */
-    robot_report_msg_t report;
-    report.msg_type = WSN_MSG_TYPE_ROBOT_REPORT;
-    report.robot_id = robot_id;
-    report.covered_grids = covered_grids;
-    
-    /* Send to base station (node ID 1) */
-    uip_ipaddr_t bs_addr;
-    uip_ip6addr(&bs_addr, 0xfe80, 0, 0, 0, 0x0201, 0x0001, 0x0001, 0x0001);
-    
-    /* Send multiple times to ensure delivery */
-    for (int attempts = 0; attempts < 3; attempts++) {
-        simple_udp_sendto(&udp_conn, &report, sizeof(report), &bs_addr);
-        clock_delay(CLOCK_SECOND / 10);
-    }
-    
-    LOG_INFO("Sent Robot_%dM report to BS: (%d, %d)\n", robot_id, robot_id, covered_grids);
-    
     /* Print energy breakdown */
     LOG_INFO("Energy breakdown:\n");
     LOG_INFO("  Baseline: %.4f J\n", baseline_energy_robot);
     LOG_INFO("  Radio: %.4f J\n", radio_energy_robot);
     LOG_INFO("  Mobility: %.4f J\n", mobility_energy);
     LOG_INFO("  Total: %.4f J\n", total_energy_consumed);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Execute local phase for assigned location area - Algorithm 2 */
-static void execute_local_phase(uint8_t la_id, position_t la_center)
-{
-    LOG_INFO("\n=== LOCAL PHASE START ===\n");
-    LOG_INFO("Robot_%d executing local phase in LA_%d\n", robot_id, la_id);
     
-    current_la_id = la_id;
-    local_phase_active = true;
-    
-    /* Algorithm 2 Step 1: Divide LA_q into NO_G grids */
-    init_grid_db(la_center);
-    
-    /* Algorithm 2 Step 3: Topology Discovery Phase */
-    topology_discovery_phase(la_center);
-    
-    /* Algorithm 2 Step 4: Initialize NO_P = NO_G */
-    no_p = num_grids; /* Number of permissible moves */
-    LOG_INFO("Initialized NO_P = %d (number of permissible moves)\n", no_p);
-    
-    /* Algorithm 2 Step 5: Dispersion Phase */
-    dispersion_phase();
-    
-    /* Algorithm 2 Step 6-8: Count covered grids and send report */
+    /* Algorithm 2 Step 8: Send Robot_pM message to BS */
     send_report_to_bs();
     
     /* Reset NO_P to initial value for next LA */
@@ -604,7 +647,7 @@ static void handle_la_assignment(uint8_t la_id, int16_t center_x, int16_t center
 }
 
 /*---------------------------------------------------------------------------*/
-/* UDP callback function - IMPROVED VERSION */
+/* UDP callback function - IMPROVED VERSION WITH ACK HANDLING */
 static void udp_rx_callback(struct simple_udp_connection *c,
                            const uip_ipaddr_t *sender_addr,
                            uint16_t sender_port,
@@ -647,6 +690,9 @@ static void udp_rx_callback(struct simple_udp_connection *c,
                 assignment_received = true;
                 pending_assignment = *assignment;
                 
+                /* Send immediate acknowledgment */
+                send_assignment_ack_to_bs();
+                
                 /* Trigger immediate processing */
                 process_post(&mobile_robot_process, PROCESS_EVENT_CONTINUE, assignment);
                 
@@ -656,6 +702,15 @@ static void udp_rx_callback(struct simple_udp_connection *c,
             }
         } else {
             LOG_INFO("Robot_%d: unexpected message type %d\n", robot_id, assignment->msg_type);
+        }
+    }
+    /* Handle acknowledgment from base station */
+    else if (datalen == 3 && data[0] == WSN_MSG_TYPE_ACK) {
+        uint8_t ack_robot_id = data[1];
+        uint8_t status = data[2];
+        
+        if (ack_robot_id == robot_id) {
+            LOG_INFO("Robot_%d received acknowledgment from BS (status: %d)\n", robot_id, status);
         }
     }
     /* Handle sensor replies during topology discovery */
@@ -701,10 +756,66 @@ static void print_robot_statistics(void)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Mobile Robot Process Thread */
+/* Send assignment acknowledgment to base station */
+static void send_assignment_ack_to_bs(void)
+{
+    typedef struct {
+        uint8_t msg_type;
+        uint8_t robot_id;
+        uint8_t status; /* 0 = assignment received */
+    } robot_ack_msg_t;
+    
+    robot_ack_msg_t ack;
+    ack.msg_type = WSN_MSG_TYPE_ACK;
+    ack.robot_id = robot_id;
+    ack.status = 0; /* Assignment received */
+    
+    uip_ipaddr_t dest_ipaddr;
+    
+    /* Send to base station using multicast */
+    uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
+    simple_udp_sendto(&udp_conn, &ack, sizeof(ack), &dest_ipaddr);
+    
+    /* Also try direct addressing to base station */
+    uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 0x0201, 0x0001, 0x0001, 0x0001);
+    simple_udp_sendto(&udp_conn, &ack, sizeof(ack), &dest_ipaddr);
+    
+    LOG_INFO("Robot_%d sent assignment acknowledgment to BS\n", robot_id);
+}
+
+/*---------------------------------------------------------------------------*/
+/* Send ready signal to base station */
+static void send_ready_signal_to_bs(void)
+{
+    typedef struct {
+        uint8_t msg_type;
+        uint8_t robot_id;
+        uint8_t status; /* 1 = ready for assignment */
+    } robot_ready_msg_t;
+    
+    robot_ready_msg_t ready;
+    ready.msg_type = WSN_MSG_TYPE_ACK;
+    ready.robot_id = robot_id;
+    ready.status = 1; /* Ready for assignment */
+    
+    uip_ipaddr_t dest_ipaddr;
+    
+    /* Send ready signal using multicast */
+    uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
+    simple_udp_sendto(&udp_conn, &ready, sizeof(ready), &dest_ipaddr);
+    
+    /* Also try direct addressing to base station */
+    uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 0x0201, 0x0001, 0x0001, 0x0001);
+    simple_udp_sendto(&udp_conn, &ready, sizeof(ready), &dest_ipaddr);
+    
+    LOG_INFO("Robot_%d sent ready signal to BS\n", robot_id);
+}
+
+/*---------------------------------------------------------------------------*/
+/* Mobile Robot Process Thread - IMPROVED FOR PARALLEL PROCESSING */
 PROCESS_THREAD(mobile_robot_process, ev, data)
 {
-    static struct etimer timer;
+    static struct etimer timer, startup_timer;
     
     PROCESS_BEGIN();
     
@@ -713,10 +824,10 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
     
     /* Set initial position to match simulation configuration */
     if (robot_id == 2) {
-        current_position.x = 100;  /* LA_1 center from simulation */
+        current_position.x = 100;  /* Near LA_1 center */
         current_position.y = 100;
     } else if (robot_id == 3) {
-        current_position.x = 900;  /* LA_25 center from simulation */
+        current_position.x = 900;  /* Near LA_5 center */
         current_position.y = 900;
     } else {
         /* Default position for other robots */
@@ -726,7 +837,7 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
     
     energy_last_update = clock_time();
     
-    LOG_INFO("Starting Mobile Robot_%d\n", robot_id);
+    LOG_INFO("Starting Mobile Robot_%d (Parallel Processing Mode)\n", robot_id);
     LOG_INFO("Robot_%d initial position: (%d, %d)\n", robot_id, current_position.x, current_position.y);
     LOG_INFO("Initial sensor stock: %d\n", stock_rs);
     
@@ -737,13 +848,20 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
     LOG_INFO("Robot_%d UDP connection registered - listening on port %d, sending to port %d\n",
              robot_id, UDP_CLIENT_PORT, UDP_SERVER_PORT);
     
-    /* Wait for network to stabilize - reduced wait time */
-    etimer_set(&timer, 10 * CLOCK_SECOND);
-    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+    /* Staggered startup to avoid network congestion */
+    if (robot_id == 2) {
+        etimer_set(&startup_timer, 10 * CLOCK_SECOND);
+    } else {
+        etimer_set(&startup_timer, 12 * CLOCK_SECOND); /* Slight delay for Robot_3 */
+    }
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&startup_timer));
     
-    LOG_INFO("Robot_%d ready and waiting for LA assignment from BS\n", robot_id);
+    LOG_INFO("Robot_%d ready and waiting for LA assignment from BS (Parallel Mode)\n", robot_id);
     
-    /* Set up more frequent statistics reporting to monitor communication */
+    /* Send ready signal to base station */
+    send_ready_signal_to_bs();
+    
+    /* Set up statistics reporting */
     etimer_set(&timer, 10 * CLOCK_SECOND);
     
     while (1) {
@@ -770,9 +888,13 @@ PROCESS_THREAD(mobile_robot_process, ev, data)
             if (data != NULL) {
                 la_assignment_msg_t *assignment = (la_assignment_msg_t *)data;
                 
-                if (assignment->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT) {
-                    LOG_INFO("Robot_%d processing LA assignment in main process\n", robot_id);
+                if (assignment->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT && !local_phase_active) {
+                    LOG_INFO("Robot_%d processing LA assignment in main process (Parallel Mode)\n", robot_id);
                     handle_la_assignment(assignment->la_id, assignment->center_x, assignment->center_y);
+                } else if (local_phase_active) {
+                    LOG_INFO("Robot_%d is busy, deferring assignment\n", robot_id);
+                    assignment_received = true;
+                    pending_assignment = *assignment;
                 }
             }
         }
