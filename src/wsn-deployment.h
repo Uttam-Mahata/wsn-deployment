@@ -83,6 +83,7 @@ typedef struct {
 #define WSN_MSG_TYPE_SENSOR_REPLY 2
 #define WSN_MSG_TYPE_ROBOT_REPORT 3
 #define WSN_MSG_TYPE_LA_ASSIGNMENT 4
+#define WSN_MSG_TYPE_ACK 5
 
 /* Configuration constants from your algorithm */
 #define TARGET_AREA_SIZE 1000        /* Target area size in meters */

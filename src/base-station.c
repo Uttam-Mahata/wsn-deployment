@@ -54,15 +54,42 @@ static uint64_t total_rx_energy = 0;
 static double robot_reported_energy[WSN_DEPLOYMENT_CONF_MAX_ROBOTS] = {0};
 static double sensor_reported_energy[WSN_DEPLOYMENT_CONF_MAX_SENSORS] = {0};
 
-/* Track assignment attempts */
-static bool assignments_sent = false;
-
 /* Forward declarations */
 static void send_la_assignment(uint8_t robot_id, uint8_t la_id);
 static bool assign_la_to_robot(uint8_t robot_id);
 static void update_la_status(uint8_t robot_id, uint8_t covered_grids);
 static void update_base_station_energy(void);
 static double calculate_total_network_energy(void);
+static double calculate_area_coverage(void);
+static void udp_rx_callback(struct simple_udp_connection *c,
+                           const uip_ipaddr_t *sender_addr,
+                           uint16_t sender_port,
+                           const uip_ipaddr_t *receiver_addr,
+                           uint16_t receiver_port,
+                           const uint8_t *data,
+                           uint16_t datalen);
+static void print_statistics(void);
+static void init_la_db(void);
+static int8_t find_unassigned_la(void);
+static void send_acknowledgment_to_robot(uint8_t robot_id);
+static void set_robot_busy_status(uint8_t robot_id, bool busy);
+
+/* Robot busy status for parallel processing */
+static bool robot_busy[MAX_ROBOTS + 1] = {false};
+
+/* Assignment time tracking for robots */
+static clock_time_t last_assignment_time_r2 = 0;
+static clock_time_t last_assignment_time_r3 = 0;
+
+/*---------------------------------------------------------------------------*/
+/* Set robot busy status for external access */
+void set_robot_busy_status(uint8_t robot_id, bool busy)
+{
+    if (robot_id >= 2 && robot_id <= (1 + MAX_ROBOTS)) {
+        robot_busy[robot_id] = busy;
+        LOG_INFO("Robot_%d status: %s\n", robot_id, busy ? "BUSY" : "AVAILABLE");
+    }
+}
 
 /*---------------------------------------------------------------------------*/
 /* Initialize Energest tracking */
@@ -176,16 +203,32 @@ static void udp_rx_callback(struct simple_udp_connection *c,
             LOG_INFO("Received report from Robot_%d: %d grids covered\n", 
                      msg->robot_id, msg->covered_grids);
             
-            /* Update LA status based on robot report */
+            /* Algorithm 1: Update LA status based on robot report */
             update_la_status(msg->robot_id, msg->covered_grids);
             
-            /* Energy tracking is handled automatically by Energest */
+            /* Mark robot as not busy - enable parallel processing */
+            set_robot_busy_status(msg->robot_id, false);
             
-            /* Try to assign new LA to robot */
-            if (assign_la_to_robot(msg->robot_id)) {
-                LOG_INFO("Reassigned Robot_%d to new LA\n", msg->robot_id);
-            } else {
-                LOG_INFO("No more LAs to assign to Robot_%d\n", msg->robot_id);
+            /* Send acknowledgment */
+            send_acknowledgment_to_robot(msg->robot_id);
+            
+            /* Algorithm 1: Check if more LAs need assignment */
+            bool uncovered_las_exist = false;
+            for (uint8_t i = 0; i < num_las; i++) {
+                if (la_db[i].no_grid == 0) {
+                    uncovered_las_exist = true;
+                    break;
+                }
+            }
+            
+            if (uncovered_las_exist) {
+                /* Try to assign new LA to this robot (parallel processing) */
+                if (assign_la_to_robot(msg->robot_id)) {
+                    LOG_INFO("Immediately reassigned Robot_%d to new LA (parallel mode)\n", msg->robot_id);
+                    robot_busy[msg->robot_id] = true;
+                } else {
+                    LOG_INFO("No more LAs to assign to Robot_%d\n", msg->robot_id);
+                }
             }
         }
     } else {
@@ -263,29 +306,19 @@ static void init_la_db(void)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Find an unassigned location area */
+/* Find an unassigned location area - FIXED VERSION */
 static int8_t find_unassigned_la(void)
 {
     for (uint8_t i = 0; i < num_las; i++) {
         if (la_db[i].no_grid == 0) {
-            /* Check if this LA is already assigned to a robot */
-            bool already_assigned = false;
-            for (uint8_t j = 0; j < num_robots; j++) {
-                if (robot_db[j].assigned_la_id == la_db[i].la_id) {
-                    already_assigned = true;
-                    break;
-                }
-            }
-            if (!already_assigned) {
-                return i;
-            }
+            return i;  /* Return first uncovered LA */
         }
     }
     return -1; /* No unassigned LA found */
 }
 
 /*---------------------------------------------------------------------------*/
-/* Assign location area to robot */
+/* Assign location area to robot - FIXED VERSION */
 static bool assign_la_to_robot(uint8_t robot_id)
 {
     int8_t la_index = find_unassigned_la();
@@ -295,16 +328,41 @@ static bool assign_la_to_robot(uint8_t robot_id)
         return false;
     }
     
-    /* Update robot database */
-    robot_db[num_robots].robot_id = robot_id;
-    robot_db[num_robots].assigned_la_id = la_db[la_index].la_id;
-    num_robots++;
+    /* Update robot database - FIXED: Find existing robot or add new one */
+    bool robot_found = false;
+    for (uint8_t i = 0; i < num_robots; i++) {
+        if (robot_db[i].robot_id == robot_id) {
+            /* Update existing robot assignment */
+            robot_db[i].assigned_la_id = la_db[la_index].la_id;
+            robot_found = true;
+            break;
+        }
+    }
+    
+    if (!robot_found && num_robots < WSN_DEPLOYMENT_CONF_MAX_ROBOTS) {
+        /* Add new robot to database */
+        robot_db[num_robots].robot_id = robot_id;
+        robot_db[num_robots].assigned_la_id = la_db[la_index].la_id;
+        num_robots++;
+    }
     
     LOG_INFO("Assigned LA_%d to Robot_%d\n", la_db[la_index].la_id, robot_id);
     
     /* Send LA assignment to robot */
     send_la_assignment(robot_id, la_db[la_index].la_id);
     
+    /* Mark robot as busy */
+    set_robot_busy_status(robot_id, true);
+    
+    /* Reset last assignment timer */
+    clock_time_t current_time = clock_time();
+    if (robot_id == 2) {
+        last_assignment_time_r2 = current_time;
+    } else if (robot_id == 3) {
+        last_assignment_time_r3 = current_time;
+    }
+    
+    LOG_INFO("Successfully assigned LA_%d to Robot_%d\n", la_db[la_index].la_id, robot_id);
     return true;
 }
 
@@ -340,7 +398,40 @@ static void update_la_status(uint8_t robot_id, uint8_t covered_grids)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Send LA assignment with direct addressing */
+/* Send acknowledgment to robot after receiving report */
+static void send_acknowledgment_to_robot(uint8_t robot_id)
+{
+    typedef struct {
+        uint8_t msg_type;
+        uint8_t robot_id;
+        uint8_t status; /* 0 = report received, 1 = new assignment coming */
+    } ack_msg_t;
+    
+    ack_msg_t ack;
+    ack.msg_type = WSN_MSG_TYPE_ACK;
+    ack.robot_id = robot_id;
+    ack.status = 0; /* Report received */
+    
+    uip_ipaddr_t dest_ipaddr;
+    
+    /* Send acknowledgment using both multicast and direct addressing */
+    /* Method 1: Link-local multicast */
+    uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
+    simple_udp_sendto(&udp_conn, &ack, sizeof(ack), &dest_ipaddr);
+    
+    /* Method 2: Direct addressing */
+    if (robot_id == 2 || robot_id == 3) {
+        uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 
+                   0x0200 + robot_id, 0x0000 + robot_id, 
+                   0x0000 + robot_id, 0x0000 + robot_id);
+        simple_udp_sendto(&udp_conn, &ack, sizeof(ack), &dest_ipaddr);
+    }
+    
+    LOG_INFO("Sent acknowledgment to Robot_%d\n", robot_id);
+}
+
+/*---------------------------------------------------------------------------*/
+/* Send LA assignment with improved reliability and load balancing */
 static void send_la_assignment(uint8_t robot_id, uint8_t la_id)
 {
     /* Find LA details */
@@ -356,30 +447,40 @@ static void send_la_assignment(uint8_t robot_id, uint8_t la_id)
             LOG_INFO("Sending LA assignment to Robot_%d\n", robot_id);
             LOG_INFO("Assignment: LA_%d at (%d, %d)\n", la_id, assignment.center_x, assignment.center_y);
             
-            /* Use both multicast and direct addressing for better delivery */
             uip_ipaddr_t dest_ipaddr;
             
-            /* Method 1: Link-local multicast */
-            uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
+            /* Improved communication reliability - try multiple methods */
             
-            /* Send message multiple times for reliability */
-            for (int attempts = 0; attempts < 5; attempts++) {
+            /* Method 1: Link-local multicast with more attempts */
+            uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
+            for (int attempts = 0; attempts < 8; attempts++) {
                 simple_udp_sendto(&udp_conn, &assignment, sizeof(assignment), &dest_ipaddr);
                 LOG_INFO("Sent multicast attempt %d for Robot_%d\n", attempts + 1, robot_id);
-                clock_delay(CLOCK_SECOND / 10); /* 100ms delay */
+                clock_delay(CLOCK_SECOND / 8); /* 125ms delay */
             }
             
-            /* Method 2: Try direct addressing to robot */
+            /* Method 2: Direct addressing with more attempts */
             if (robot_id == 2 || robot_id == 3) {
                 /* Construct direct IPv6 address for robot */
                 uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 
                            0x0200 + robot_id, 0x0000 + robot_id, 
                            0x0000 + robot_id, 0x0000 + robot_id);
                 
-                for (int attempts = 0; attempts < 3; attempts++) {
+                for (int attempts = 0; attempts < 5; attempts++) {
                     simple_udp_sendto(&udp_conn, &assignment, sizeof(assignment), &dest_ipaddr);
                     LOG_INFO("Sent direct attempt %d to Robot_%d\n", attempts + 1, robot_id);
-                    clock_delay(CLOCK_SECOND / 10);
+                    clock_delay(CLOCK_SECOND / 8);
+                }
+            }
+            
+            /* Method 3: Alternative addressing scheme for Robot_2 */
+            if (robot_id == 2) {
+                /* Try alternative addressing patterns */
+                uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 0x0002, 0x0002, 0x0002, 0x0002);
+                for (int attempts = 0; attempts < 3; attempts++) {
+                    simple_udp_sendto(&udp_conn, &assignment, sizeof(assignment), &dest_ipaddr);
+                    LOG_INFO("Sent alternative attempt %d to Robot_%d\n", attempts + 1, robot_id);
+                    clock_delay(CLOCK_SECOND / 8);
                 }
             }
             
@@ -391,10 +492,12 @@ static void send_la_assignment(uint8_t robot_id, uint8_t la_id)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Base Station Process Thread */
+/* Base Station Process Thread - FIXED TO FOLLOW ALGORITHM 1 */
 PROCESS_THREAD(base_station_process, ev, data)
 {
     static struct etimer timer, assignment_timer;
+    static bool global_phase_active = false;
+    static bool deployment_complete = false;
     
     PROCESS_BEGIN();
     
@@ -415,14 +518,17 @@ PROCESS_THREAD(base_station_process, ev, data)
     
     LOG_INFO("Base Station initialized. Starting global phase...\n");
     
-    /* Reduced wait time for faster startup */
+    /* Wait for network to stabilize */
     etimer_set(&timer, 30 * CLOCK_SECOND);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
     
-    LOG_INFO("Network should be stable now. Starting robot assignments...\n");
+    LOG_INFO("Network stable. Starting Algorithm 1 Global Phase (Parallel Processing)...\n");
     
-    /* Set up immediate assignment attempts */
-    etimer_set(&assignment_timer, 1 * CLOCK_SECOND);
+    /* ALGORITHM 1 IMPLEMENTATION: Global Phase with Parallel Processing */
+    global_phase_active = true;
+    
+    /* Set up periodic assignment checking */
+    etimer_set(&assignment_timer, 2 * CLOCK_SECOND);
     
     /* Set up periodic energy update and statistics reporting */
     etimer_set(&timer, 5 * CLOCK_SECOND);
@@ -431,38 +537,57 @@ PROCESS_THREAD(base_station_process, ev, data)
         PROCESS_WAIT_EVENT();
         
         if (ev == PROCESS_EVENT_TIMER) {
-            if (data == &assignment_timer && !assignments_sent) {
-                LOG_INFO("Attempting robot assignments...\n");
-                
-                /* Initial robot assignments - assign robots to different LAs */
-                /* Robot node IDs start from 2 in the simulation */
-                for (uint8_t robot_node_id = 2; robot_node_id <= (1 + MAX_ROBOTS); robot_node_id++) {
-                    if (assign_la_to_robot(robot_node_id)) {
-                        LOG_INFO("Successfully assigned Robot_%d\n", robot_node_id);
-                    } else {
-                        LOG_INFO("Failed to assign Robot_%d - no available LAs\n", robot_node_id);
+            if (data == &assignment_timer && global_phase_active && !deployment_complete) {
+                /* Algorithm 1: while there exists a record in LA_DB whose NO_Grid attribute value is 0 do */
+                bool uncovered_las_exist = false;
+                for (uint8_t i = 0; i < num_las; i++) {
+                    if (la_db[i].no_grid == 0) {
+                        uncovered_las_exist = true;
+                        break;
                     }
                 }
-                assignments_sent = true;
                 
-                /* Continue sending assignments periodically */
-                etimer_set(&assignment_timer, 10 * CLOCK_SECOND);
-                
-            } else if (data == &assignment_timer && assignments_sent) {
-                /* Retry assignments if robots haven't responded */
-                LOG_INFO("Retrying robot assignments...\n");
-                
-                for (uint8_t robot_node_id = 2; robot_node_id <= (1 + MAX_ROBOTS); robot_node_id++) {
-                    /* Find this robot's assignment and resend */
-                    for (uint8_t i = 0; i < num_robots; i++) {
-                        if (robot_db[i].robot_id == robot_node_id) {
-                            send_la_assignment(robot_node_id, robot_db[i].assigned_la_id);
-                            break;
+                if (uncovered_las_exist) {
+                    LOG_INFO("=== GLOBAL PHASE: Uncovered LAs exist, checking robot availability ===\n");
+                    
+                    /* Algorithm 1: for Robot p ← 1 to 2 do (PARALLEL PROCESSING) */
+                    bool assignments_made = false;
+                    for (uint8_t robot_node_id = 2; robot_node_id <= (1 + MAX_ROBOTS); robot_node_id++) {
+                        /* Check if robot is not busy (parallel processing) */
+                        if (!robot_busy[robot_node_id]) {
+                            if (assign_la_to_robot(robot_node_id)) {
+                                LOG_INFO("Successfully assigned Robot_%d (parallel mode)\n", robot_node_id);
+                                robot_busy[robot_node_id] = true;
+                                assignments_made = true;
+                            } else {
+                                LOG_INFO("No available LAs for Robot_%d\n", robot_node_id);
+                            }
+                        } else {
+                            LOG_INFO("Robot_%d is busy, waiting for completion\n", robot_node_id);
                         }
                     }
+                    
+                    if (!assignments_made) {
+                        LOG_INFO("No assignments possible - all robots busy or no LAs available\n");
+                    }
+                } else {
+                    /* No more uncovered LAs - deployment complete */
+                    deployment_complete = true;
+                    global_phase_active = false;
+                    
+                    LOG_INFO("=== DEPLOYMENT COMPLETE ===\n");
+                    LOG_INFO("All location areas covered!\n");
+                    LOG_INFO("Final coverage: %.2f%%\n", calculate_area_coverage());
+                    LOG_INFO("Final energy consumption: %.4f J\n", calculate_total_network_energy());
                 }
                 
-                etimer_set(&assignment_timer, 15 * CLOCK_SECOND);
+                /* Continue global phase loop with faster checking for parallel processing */
+                etimer_set(&assignment_timer, 5 * CLOCK_SECOND);
+                
+            } else if (data == &assignment_timer && !global_phase_active) {
+                /* Deployment complete - just monitor */
+                LOG_INFO("Deployment monitoring - all LAs covered\n");
+                etimer_set(&assignment_timer, 30 * CLOCK_SECOND);
                 
             } else if (data == &timer) {
                 /* Update base station energy */
@@ -473,22 +598,6 @@ PROCESS_THREAD(base_station_process, ev, data)
                 if (++count >= 6) {
                     print_statistics();
                     count = 0;
-                    
-                    /* Check if deployment is complete */
-                    bool deployment_complete = true;
-                    for (uint8_t i = 0; i < num_las; i++) {
-                        if (la_db[i].no_grid == 0) {
-                            deployment_complete = false;
-                            break;
-                        }
-                    }
-                    
-                    if (deployment_complete) {
-                        LOG_INFO("Deployment complete! Final coverage: %.2f%%\n", 
-                                 calculate_area_coverage());
-                        LOG_INFO("Final energy consumption: %.4f J\n",
-                                 calculate_total_network_energy());
-                    }
                 }
                 
                 etimer_reset(&timer);
