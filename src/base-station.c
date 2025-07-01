@@ -293,8 +293,9 @@ static void init_la_db(void)
             la_db[la_count].center_x = x;
             la_db[la_count].center_y = y;
             la_db[la_count].no_grid = 0; /* Initially no grids covered */
+            la_db[la_count].la_status = LA_STATUS_UNASSIGNED; /* Initially unassigned */
             
-            LOG_INFO("LA_%d: center(%d, %d)\n", la_db[la_count].la_id, x, y);
+            LOG_INFO("LA_%d: center(%d, %d), status: unassigned\n", la_db[la_count].la_id, x, y);
             la_count++;
         }
     }
@@ -310,8 +311,8 @@ static void init_la_db(void)
 static int8_t find_unassigned_la(void)
 {
     for (uint8_t i = 0; i < num_las; i++) {
-        if (la_db[i].no_grid == 0) {
-            return i;  /* Return first uncovered LA */
+        if (la_db[i].la_status == LA_STATUS_UNASSIGNED) {
+            return i;  /* Return first unassigned LA */
         }
     }
     return -1; /* No unassigned LA found */
@@ -327,6 +328,9 @@ static bool assign_la_to_robot(uint8_t robot_id)
         LOG_INFO("No unassigned location area found\n");
         return false;
     }
+    
+    /* Mark LA as assigned IMMEDIATELY to prevent duplicate assignments */
+    la_db[la_index].la_status = LA_STATUS_ASSIGNED;
     
     /* Update robot database - FIXED: Find existing robot or add new one */
     bool robot_found = false;
@@ -346,7 +350,7 @@ static bool assign_la_to_robot(uint8_t robot_id)
         num_robots++;
     }
     
-    LOG_INFO("Assigned LA_%d to Robot_%d\n", la_db[la_index].la_id, robot_id);
+    LOG_INFO("Assigned LA_%d to Robot_%d (marked as ASSIGNED)\n", la_db[la_index].la_id, robot_id);
     
     /* Send LA assignment to robot */
     send_la_assignment(robot_id, la_db[la_index].la_id);
@@ -379,8 +383,10 @@ static void update_la_status(uint8_t robot_id, uint8_t covered_grids)
             for (uint8_t j = 0; j < num_las; j++) {
                 if (la_db[j].la_id == la_id) {
                     la_db[j].no_grid = covered_grids;
+                    /* Mark LA as covered if work is complete */
+                    la_db[j].la_status = LA_STATUS_COVERED;
                     
-                    LOG_INFO("Updated LA_%d: %d grids covered by Robot_%d\n", 
+                    LOG_INFO("Updated LA_%d: %d grids covered by Robot_%d (marked as COVERED)\n", 
                              la_id, covered_grids, robot_id);
                     
                     /* Recalculate total covered grids */
@@ -541,14 +547,14 @@ PROCESS_THREAD(base_station_process, ev, data)
                 /* Algorithm 1: while there exists a record in LA_DB whose NO_Grid attribute value is 0 do */
                 bool uncovered_las_exist = false;
                 for (uint8_t i = 0; i < num_las; i++) {
-                    if (la_db[i].no_grid == 0) {
+                    if (la_db[i].la_status == LA_STATUS_UNASSIGNED) {
                         uncovered_las_exist = true;
                         break;
                     }
                 }
                 
                 if (uncovered_las_exist) {
-                    LOG_INFO("=== GLOBAL PHASE: Uncovered LAs exist, checking robot availability ===\n");
+                    LOG_INFO("=== GLOBAL PHASE: Unassigned LAs exist, checking robot availability ===\n");
                     
                     /* Algorithm 1: for Robot p ← 1 to 2 do (PARALLEL PROCESSING) */
                     bool assignments_made = false;
@@ -571,12 +577,12 @@ PROCESS_THREAD(base_station_process, ev, data)
                         LOG_INFO("No assignments possible - all robots busy or no LAs available\n");
                     }
                 } else {
-                    /* No more uncovered LAs - deployment complete */
+                    /* No more unassigned LAs - deployment complete */
                     deployment_complete = true;
                     global_phase_active = false;
                     
                     LOG_INFO("=== DEPLOYMENT COMPLETE ===\n");
-                    LOG_INFO("All location areas covered!\n");
+                    LOG_INFO("All location areas assigned and covered!\n");
                     LOG_INFO("Final coverage: %.2f%%\n", calculate_area_coverage());
                     LOG_INFO("Final energy consumption: %.4f J\n", calculate_total_network_energy());
                 }

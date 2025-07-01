@@ -265,22 +265,26 @@ static void move_robot_to_position(position_t target)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Check if grid has sensors (simulated) */
+/* Check if grid has sensors - DETERMINISTIC VERSION */
 static uint8_t count_sensors_in_grid(uint8_t grid_idx)
 {
-    /* For simulation, randomly determine if grid has sensors */
     uint8_t sensor_count = 0;
     position_t grid_center = {grid_db[grid_idx].center_x, grid_db[grid_idx].center_y};
     
-    /* Check existing sensors in database */
+    /* Check existing sensors in database - deterministic approach */
     for (uint8_t i = 0; i < num_sensors; i++) {
-        position_t sensor_pos = {sensor_db[i].x_coord, sensor_db[i].y_coord};
-        double distance = calculate_distance(grid_center, sensor_pos);
-        
-        if (distance <= SENSOR_PERCEPTION_RANGE) {
-            sensor_count++;
+        if (sensor_db[i].sensor_status == 0) { /* Only count idle sensors */
+            position_t sensor_pos = {sensor_db[i].x_coord, sensor_db[i].y_coord};
+            double distance = calculate_distance(grid_center, sensor_pos);
+            
+            if (distance <= SENSOR_PERCEPTION_RANGE) {
+                sensor_count++;
+            }
         }
     }
+    
+    LOG_INFO("Grid_%d contains %d idle sensors within range\n", 
+             grid_db[grid_idx].grid_id, sensor_count);
     
     /* Add some random sensors for simulation */
     if (sensor_count == 0 && (random_rand() % 100) < 30) { /* 30% chance */

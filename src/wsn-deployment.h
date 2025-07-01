@@ -15,6 +15,7 @@ typedef struct {
     int16_t center_x;
     int16_t center_y;
     uint8_t no_grid;
+    uint8_t la_status; /* 0 = unassigned, 1 = assigned, 2 = covered */
 } la_db_entry_t;
 
 /* Robot Database Entry */
@@ -99,6 +100,31 @@ typedef struct {
 /* NO_G = floor(Perception range of robot / Perception range of sensor) */
 #define NO_G ((int)(ROBOT_PERCEPTION_RANGE / SENSOR_PERCEPTION_RANGE))
 
+/* Energy parameters from the paper (in Watts) */
+/* Sensor energy parameters */
+#define POWER_BASELINE_SENSOR 0.003      /* 3 mW baseline power for sensors */
+#define POWER_PROCESSING_SENSOR 0.020    /* 20 mW processing power for sensors */
+#define POWER_TRANSMIT_SENSOR 0.050      /* 50 mW transmit power for sensors */
+#define POWER_RECEIVE_SENSOR 0.030       /* 30 mW receive power for sensors */
+#define MU_SENSING 0.0005               /* Energy coefficient for sensing (μ) */
+
+/* Robot energy parameters */
+#define POWER_BASELINE_ROBOT 0.100       /* 100 mW baseline power for robots */
+#define POWER_PROCESSING_ROBOT 0.050     /* 50 mW processing power for robots */
+#define POWER_TRANSMIT_ROBOT 0.200       /* 200 mW transmit power for robots */
+#define POWER_RECEIVE_ROBOT 0.150        /* 150 mW receive power for robots */
+#define TAU_MOBILITY 0.0005             /* Energy coefficient for robot movement (τ) */
+
+/* Base station energy parameters */
+#define POWER_PROCESSING_BASE 0.080      /* 80 mW processing power for base station */
+#define POWER_TRANSMIT_BASE 0.250        /* 250 mW transmit power for base station */
+#define POWER_RECEIVE_BASE 0.180         /* 180 mW receive power for base station */
+
+/* Timing parameters from paper */
+#define INTERVAL_COUNT 10.0              /* I_C - interval count */
+#define CYCLE_TIME 1.0                   /* T_C - cycle time in seconds */
+#define PROCESSING_TIME 0.1              /* T_P - processing time in seconds */
+
 /* Network ports */
 #define UDP_CLIENT_PORT 8765
 #define UDP_SERVER_PORT 5678
@@ -115,5 +141,10 @@ double calculate_processing_energy(double power_processing, double time_processi
 double calculate_radio_energy(double power_transmit, double time_transmit, 
                              double power_receive, double time_receive);
 double calculate_mobility_energy(double distance);
+
+/* LA Status constants */
+#define LA_STATUS_UNASSIGNED 0
+#define LA_STATUS_ASSIGNED 1  
+#define LA_STATUS_COVERED 2
 
 #endif /* WSN_DEPLOYMENT_H */
