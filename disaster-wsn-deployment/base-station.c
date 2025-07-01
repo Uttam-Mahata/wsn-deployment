@@ -13,6 +13,10 @@
 #define LOG_MODULE "BaseStation"
 #define LOG_LEVEL LOG_LEVEL_APP
 
+/* Robot timeout configuration */
+#define ROBOT_TIMEOUT_SECONDS 10
+#define MONITORING_INTERVAL (5 * CLOCK_SECOND)
+
 /* Data Structures based on APP_I algorithm */
 typedef struct {
     uint8_t la_id;
@@ -24,6 +28,8 @@ typedef struct {
 typedef struct {
     uint8_t robot_id;
     uint8_t assigned_la_id;
+    clock_time_t assignment_time;
+    uint8_t responsive;
 } robot_db_record_t;
 
 typedef struct {
@@ -59,6 +65,7 @@ static struct {
 
 static struct simple_udp_connection udp_conn;
 static struct etimer energy_timer;
+static struct etimer monitoring_timer;
 
 PROCESS(base_station_process, "Base Station Process");
 AUTOSTART_PROCESSES(&base_station_process);
@@ -141,6 +148,8 @@ static void assign_robot_to_la(uint8_t robot_id, uint8_t la_index) {
     if (robot_id < MAX_ROBOTS) {
         base_station.robot_db[robot_id].robot_id = robot_id;
         base_station.robot_db[robot_id].assigned_la_id = base_station.la_db[la_index].la_id;
+        base_station.robot_db[robot_id].assignment_time = clock_time();
+        base_station.robot_db[robot_id].responsive = 0; // Will be set to 1 when robot responds
         
         LOG_INFO("Assigned Robot %u to LA %u at (%u, %u)\n", 
                 robot_id, base_station.la_db[la_index].la_id,
@@ -153,6 +162,9 @@ static void assign_robot_to_la(uint8_t robot_id, uint8_t la_index) {
 static void update_la_coverage(uint8_t robot_id, uint8_t covered_grids) {
     /* Find robot's assigned LA */
     uint8_t assigned_la_id = base_station.robot_db[robot_id].assigned_la_id;
+    
+    /* Mark robot as responsive */
+    base_station.robot_db[robot_id].responsive = 1;
     
     /* Update LA_DB */
     for (uint8_t i = 0; i < base_station.num_location_areas; i++) {
@@ -179,6 +191,92 @@ static float calculate_area_coverage_percentage() {
     return total_grids > 0 ? ((float)covered_grids / total_grids) * 100.0 : 0.0;
 }
 
+static void check_robot_timeouts_and_reassign() {
+    clock_time_t current_time = clock_time();
+    clock_time_t timeout_threshold = ROBOT_TIMEOUT_SECONDS * CLOCK_SECOND;
+    
+    /* Check for timed-out robots */
+    for (uint8_t robot_id = 0; robot_id < MAX_ROBOTS; robot_id++) {
+        if (base_station.robot_db[robot_id].assigned_la_id != 0 && 
+            !base_station.robot_db[robot_id].responsive) {
+            
+            clock_time_t elapsed = current_time - base_station.robot_db[robot_id].assignment_time;
+            
+            if (elapsed > timeout_threshold) {
+                uint8_t timed_out_la_id = base_station.robot_db[robot_id].assigned_la_id;
+                
+                LOG_INFO("Robot %u timeout detected for LA %u (%.1f seconds)\n", 
+                        robot_id, timed_out_la_id, (float)elapsed / CLOCK_SECOND);
+                
+                /* Reset the LA to uncovered since robot didn't respond */
+                for (uint8_t i = 0; i < base_station.num_location_areas; i++) {
+                    if (base_station.la_db[i].la_id == timed_out_la_id) {
+                        base_station.la_db[i].no_grid = 0;
+                        LOG_INFO("Reset LA %u to uncovered due to robot timeout\n", timed_out_la_id);
+                        break;
+                    }
+                }
+                
+                /* Clear robot assignment */
+                base_station.robot_db[robot_id].assigned_la_id = 0;
+                base_station.robot_db[robot_id].responsive = 0;
+                
+                /* Try to find a responsive robot to reassign to this LA */
+                for (uint8_t responsive_robot = 0; responsive_robot < MAX_ROBOTS; responsive_robot++) {
+                    if (responsive_robot != robot_id && 
+                        base_station.robot_db[responsive_robot].responsive &&
+                        base_station.robot_db[responsive_robot].assigned_la_id == 0) {
+                        
+                        /* Find the LA index for reassignment */
+                        for (uint8_t la_idx = 0; la_idx < base_station.num_location_areas; la_idx++) {
+                            if (base_station.la_db[la_idx].la_id == timed_out_la_id) {
+                                assign_robot_to_la(responsive_robot, la_idx);
+                                
+                                robot_assignment_msg_t assignment_msg;
+                                assignment_msg.target_robot_id = responsive_robot;
+                                assignment_msg.la_assignment = base_station.la_db[la_idx];
+                                
+                                /* Send reassignment (broadcast since we don't have specific robot address) */
+                                uip_ipaddr_t robot_addr;
+                                uip_ip6addr(&robot_addr, 0xff02, 0, 0, 0, 0, 0, 0, 1);
+                                simple_udp_sendto(&udp_conn, &assignment_msg, sizeof(assignment_msg), &robot_addr);
+                                base_station.messages_sent++;
+                                
+                                LOG_INFO("Reassigned timed-out LA %u from Robot %u to Robot %u\n", 
+                                        timed_out_la_id, robot_id, responsive_robot);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    /* Check for global completion - all LAs must have coverage > 0 */
+    bool all_las_covered = true;
+    for (uint8_t i = 0; i < base_station.num_location_areas; i++) {
+        if (base_station.la_db[i].no_grid == 0) {
+            all_las_covered = false;
+            break;
+        }
+    }
+    
+    if (all_las_covered) {
+        static bool completion_reported = false;
+        if (!completion_reported) {
+            float coverage_percentage = calculate_area_coverage_percentage();
+            LOG_INFO("=== DEPLOYMENT COMPLETE ===\n");
+            LOG_INFO("All location areas covered\n");
+            LOG_INFO("Final area coverage: %.2f%%\n", coverage_percentage);
+            LOG_INFO("Total robots deployed: %u\n", base_station.active_robots);
+            LOG_INFO("===========================\n");
+            completion_reported = true;
+        }
+    }
+}
+
 /* Communication Handlers */
 static void udp_rx_callback(struct simple_udp_connection *c,
                            const uip_ipaddr_t *sender_addr,
@@ -199,6 +297,9 @@ static void udp_rx_callback(struct simple_udp_connection *c,
         /* Update LA coverage */
         update_la_coverage(msg->robot_id, msg->covered_grids);
         
+        /* Clear assignment since this robot completed its task */
+        base_station.robot_db[msg->robot_id].assigned_la_id = 0;
+        
         /* Search for next uncovered LA as per APP_I global phase */
         int8_t next_la = find_uncovered_la();
         if (next_la >= 0) {
@@ -214,7 +315,7 @@ static void udp_rx_callback(struct simple_udp_connection *c,
             LOG_INFO("Assigned Robot %u to new LA %u - continuing global phase\n", 
                     msg->robot_id, base_station.la_db[next_la].la_id);
         } else {
-            LOG_INFO("No uncovered LAs remain. Robot %u deployment complete.\n", msg->robot_id);
+            LOG_INFO("No uncovered LAs remain. Robot %u is now available.\n", msg->robot_id);
         }
     }
 }
@@ -299,8 +400,9 @@ PROCESS_THREAD(base_station_process, ev, data) {
     /* Deploy initial robots */
     deploy_initial_robots();
     
-    /* Set energy reporting timer */
+    /* Set timers */
     etimer_set(&energy_timer, ENERGY_REPORT_INTERVAL);
+    etimer_set(&monitoring_timer, MONITORING_INTERVAL);
     
     LOG_INFO("Base Station initialized. Managing %u location areas.\n", 
              base_station.num_location_areas);
@@ -311,6 +413,11 @@ PROCESS_THREAD(base_station_process, ev, data) {
         if (ev == PROCESS_EVENT_TIMER && data == &energy_timer) {
             print_energy_report();
             etimer_reset(&energy_timer);
+        }
+        
+        if (ev == PROCESS_EVENT_TIMER && data == &monitoring_timer) {
+            check_robot_timeouts_and_reassign();
+            etimer_reset(&monitoring_timer);
         }
     }
     
