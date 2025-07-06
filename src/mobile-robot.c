@@ -1,910 +1,414 @@
-/*
- * WSN Deployment Mobile Robot Implementation 
-
- * 1. Grid creation based on NO_G formula
- * 2. Topology Discovery Phase with Mp broadcast
- * 3. Dispersion Phase with 4 cases
- * 4. Energy consumption calculations
- * 5. Limited moves (NO_P) constraint
- */
-
-#include "contiki.h"
-#include "net/routing/routing.h"
-#include "net/netstack.h"
-#include "net/ipv6/simple-udp.h"
-#include "sys/log.h"
-#include "sys/node-id.h"
-#include "sys/energest.h"
-#include "random.h"
-#include "wsn-deployment.h"
-#include <stdio.h>
+#include "common.h"
 #include <string.h>
-#include <math.h>
 
-#define LOG_MODULE "Robot"
-#define LOG_LEVEL LOG_LEVEL_INFO
+// Global array to simulate deployed sensors in the environment
+static sensor_db_record_t deployed_sensors[1000];
+static uint32_t deployed_sensor_count = 0;
 
-/* Mobile Robot Process */
-PROCESS(mobile_robot_process, "Mobile Robot Process");
-AUTOSTART_PROCESSES(&mobile_robot_process);
-
-/* Network communication */
-static struct simple_udp_connection udp_conn;
-
-/* Robot state */
-static uint8_t robot_id;
-static uint8_t current_la_id = 0;
-static position_t current_position;
-static uint8_t stock_rs = INITIAL_STOCK; /* Robot sensor stock */
-static uint8_t no_p; /* Number of permissible moves */
-static bool local_phase_active = false;
-static bool assignment_received = false;
-
-/* Local databases maintained by robot */
-static grid_db_entry_t grid_db[WSN_DEPLOYMENT_CONF_MAX_GRIDS_PER_LA];
-static sensor_db_entry_t sensor_db[WSN_DEPLOYMENT_CONF_MAX_SENSORS];
-static uint8_t num_grids = 0;
-static uint8_t num_sensors = 0;
-
-/* Pending assignment data */
-static la_assignment_msg_t pending_assignment;
-
-/* Energy tracking */
-static double total_energy_consumed = 0.0;
-static double baseline_energy_robot = 0.0;
-static double radio_energy_robot = 0.0;
-static double mobility_energy = 0.0;
-static double distance_traveled = 0.0;
-static clock_time_t energy_last_update = 0;
-
-/* Timing parameters from paper */
-static const double interval_count = 10.0;      /* I_C */
-static const double cycle_time = 1.0;           /* T_C in seconds */
-static const double processing_time = 0.1;      /* T_P in seconds */
-
-/* Energy parameters for robot */
-static const double power_baseline_robot = 0.1;    /* 100 mW baseline power */
-static const double power_transmit_robot = 0.2;    /* 200 mW transmit power */
-static const double power_receive_robot = 0.15;    /* 150 mW receive power */
-static const double tau = 0.0005;                  /* Energy coefficient for movement as per paper */
-
-/* Function declarations */
-static void handle_la_assignment(uint8_t la_id, int16_t center_x, int16_t center_y);
-static void send_assignment_ack_to_bs(void);
-static void send_ready_signal_to_bs(void);
-static void send_report_to_bs(void);
-static void execute_local_phase(uint8_t la_id, position_t la_center);
-static void topology_discovery_phase(position_t la_center);
-static void dispersion_phase(void);
-static void init_grid_db(position_t la_center);
-static uint8_t find_nearest_uncovered_grid(void);
-static void move_robot_to_position(position_t target);
-static uint8_t count_sensors_in_grid(uint8_t grid_idx);
-static void dispersion_case1(uint8_t grid_idx);
-static void dispersion_case2(uint8_t grid_idx);
-static void dispersion_case3(uint8_t grid_idx);
-static void dispersion_case4(uint8_t grid_idx);
-static void update_robot_energy(void);
-static void add_mobility_energy(double distance);
-static double calculate_total_robot_energy(void);
-static void print_robot_statistics(void);
-static void udp_rx_callback(struct simple_udp_connection *c,
-                           const uip_ipaddr_t *sender_addr,
-                           uint16_t sender_port,
-                           const uip_ipaddr_t *receiver_addr,
-                           uint16_t receiver_port,
-                           const uint8_t *data,
-                           uint16_t datalen);
-
-/*---------------------------------------------------------------------------*/
-/* Calculate distance between two positions */
-double calculate_distance(position_t pos1, position_t pos2)
-{
-    double dx = pos1.x - pos2.x;
-    double dy = pos1.y - pos2.y;
-    return sqrt(dx * dx + dy * dy);
+// Initialize mobile robot
+void initialize_mobile_robot(mobile_robot_t *robot, robot_id_t id, uint32_t la_id, coordinate_t la_center) {
+    robot->robot_id = id;
+    robot->assigned_la_id = la_id;
+    robot->la_center = la_center;
+    robot->current_position = la_center;
+    robot->stock_rs = STOCK_RS;  // Initially 10 sensors as per specification
+    robot->no_g = (uint32_t)floor(robot_perception_range / sensor_perception_range);
+    robot->no_p = robot->no_g;  // Initially NO_P = NO_G
+    
+    // Allocate memory for local databases
+    robot->grid_db = (grid_db_record_t*)calloc(robot->no_g, sizeof(grid_db_record_t));
+    robot->sensor_db = (sensor_db_record_t*)calloc(robot->no_g * 4, sizeof(sensor_db_record_t)); // Estimate
+    robot->sensor_db_count = 0;
+    
+    printf("Robot_%d initialized in LA_%u at center (%.2f, %.2f)\n", 
+           robot->robot_id + 1, robot->assigned_la_id, 
+           robot->la_center.x, robot->la_center.y);
+    printf("Robot_%d stock: %u sensors, NO_G: %u, NO_P: %u\n", 
+           robot->robot_id + 1, robot->stock_rs, robot->no_g, robot->no_p);
 }
 
-/*---------------------------------------------------------------------------*/
-/* Calculate baseline energy as per paper: E_baseline = (t_i - t_s) * P_baseline */
-double calculate_robot_baseline_energy(double time_duration)
-{
-    /* t_i = I_C * (T_C + T_P) */
-    double t_i = interval_count * (cycle_time + processing_time);
-    double t_s = 0; /* Start time, assuming 0 for simplicity */
+// Execute complete local phase
+void execute_local_phase(mobile_robot_t *robot) {
+    printf("\n=== Robot_%d Starting Local Phase in LA_%u ===\n", 
+           robot->robot_id + 1, robot->assigned_la_id);
     
-    return (t_i - t_s) * power_baseline_robot * time_duration;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate radio energy as per paper: E_radio = E_transmit + E_receive */
-double calculate_robot_radio_energy(double time_transmit, double time_receive)
-{
-    double transmit_energy = power_transmit_robot * time_transmit;
-    double receive_energy = power_receive_robot * time_receive;
-    return transmit_energy + receive_energy;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Update robot energy consumption */
-static void update_robot_energy(void)
-{
-    clock_time_t current_time = clock_time();
-    if (energy_last_update == 0) {
-        energy_last_update = current_time;
-        return;
-    }
+    // Algorithm 2: Local phase steps
     
-    double time_duration = (double)(current_time - energy_last_update) / CLOCK_SECOND;
-    if (time_duration <= 0) return;
+    // Step 1: Divide LA_q into NO_G grids
+    divide_la_into_grids(robot);
     
-    /* Baseline energy consumption using formula from paper */
-    double baseline = calculate_robot_baseline_energy(time_duration);
-    baseline_energy_robot += baseline;
-    total_energy_consumed += baseline;
+    // Step 2: Insert records into Grid_DB (done in divide_la_into_grids)
     
-    /* Radio energy (estimated based on communication activity) */
-    double radio_energy = calculate_robot_radio_energy(
-        time_duration * 0.02,  /* 2% tx time */
-        time_duration * 0.05   /* 5% rx time */
-    );
-    radio_energy_robot += radio_energy;
-    total_energy_consumed += radio_energy;
+    // Step 3: Topology Discovery Phase
+    topology_discovery_phase(robot);
     
-    energy_last_update = current_time;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate and add mobility energy for distance traveled - E_mobility = τ * D_p */
-static void add_mobility_energy(double distance)
-{
-    double mobility = tau * distance;
-    mobility_energy += mobility;
-    total_energy_consumed += mobility;
-    distance_traveled += distance;
+    // Step 4: Initialize NO_P = NO_G (already done in initialization)
+    robot->no_p = robot->no_g;
     
-    LOG_INFO("Mobility energy: %.4f J, Distance: %.2f m, Total: %.4f J\n", 
-             mobility, distance, total_energy_consumed);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate total energy consumption according to paper formula:
-   Energy_Tot = E_robot (for robots) */
-static double calculate_total_robot_energy(void)
-{
-    /* For robot: E_robot = E_baseline_robot + E_radio_robot + E_mobility */
-    return baseline_energy_robot + radio_energy_robot + mobility_energy;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Initialize grid database for current LA */
-static void init_grid_db(position_t la_center)
-{
-    uint8_t grid_count = 0;
-    int16_t start_x = la_center.x - ROBOT_PERCEPTION_RANGE/2;
-    int16_t start_y = la_center.y - ROBOT_PERCEPTION_RANGE/2;
-    int16_t grid_size = SENSOR_PERCEPTION_RANGE;
+    // Step 5: Dispersion Phase
+    dispersion_phase(robot);
     
-    /* NO_G = floor(Robot perception range / Sensor perception range) */
-    num_grids = NO_G; /* Using the formula from wsn-deployment.h */
-    if (num_grids > WSN_DEPLOYMENT_CONF_MAX_GRIDS_PER_LA) {
-        num_grids = WSN_DEPLOYMENT_CONF_MAX_GRIDS_PER_LA;
-    }
-    
-    LOG_INFO("Dividing LA_%d into %d grids (NO_G)\n", current_la_id, num_grids);
-    LOG_INFO("Grid size: %d x %d, LA center: (%d, %d)\n", 
-             grid_size, grid_size, la_center.x, la_center.y);
-    
-    /* Create grid layout within the location area */
-    uint8_t grids_per_row = (uint8_t)sqrt(num_grids);
-    
-    for (uint8_t row = 0; row < grids_per_row && grid_count < num_grids; row++) {
-        for (uint8_t col = 0; col < grids_per_row && grid_count < num_grids; col++) {
-            grid_db[grid_count].grid_id = grid_count + 1;
-            grid_db[grid_count].center_x = start_x + (col + 0.5) * grid_size;
-            grid_db[grid_count].center_y = start_y + (row + 0.5) * grid_size;
-            grid_db[grid_count].grid_status = 0; /* Initially uncovered */
-            
-            LOG_INFO("Grid_%d: center(%d, %d), status: uncovered\n", 
-                     grid_db[grid_count].grid_id,
-                     grid_db[grid_count].center_x,
-                     grid_db[grid_count].center_y);
-            grid_count++;
-        }
-    }
-    
-    num_grids = grid_count;
-    LOG_INFO("Created %d grids in Grid_DB for LA_%d\n", num_grids, current_la_id);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Find nearest uncovered grid from current position */
-static uint8_t find_nearest_uncovered_grid(void)
-{
-    uint8_t nearest_grid = 0;
-    double min_distance = INFINITY;
-    bool found = false;
-    
-    for (uint8_t i = 0; i < num_grids; i++) {
-        if (grid_db[i].grid_status == 0) { /* Uncovered grid */
-            position_t grid_pos = {grid_db[i].center_x, grid_db[i].center_y};
-            double distance = calculate_distance(current_position, grid_pos);
-            
-            if (distance < min_distance) {
-                min_distance = distance;
-                nearest_grid = i;
-                found = true;
-            }
-        }
-    }
-    
-    if (found) {
-        LOG_INFO("Nearest uncovered grid: Grid_%d at distance %.2f\n", 
-                 grid_db[nearest_grid].grid_id, min_distance);
-    } else {
-        LOG_INFO("No uncovered grids found\n");
-    }
-    
-    return nearest_grid;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Move robot to specified position */
-static void move_robot_to_position(position_t target)
-{
-    double distance = calculate_distance(current_position, target);
-    
-    LOG_INFO("Moving from (%d, %d) to (%d, %d), distance: %.2f m\n",
-             current_position.x, current_position.y, target.x, target.y, distance);
-    
-    /* Update position */
-    current_position = target;
-    
-    /* Calculate and add mobility energy */
-    add_mobility_energy(distance);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Check if grid has sensors - DETERMINISTIC VERSION */
-static uint8_t count_sensors_in_grid(uint8_t grid_idx)
-{
-    uint8_t sensor_count = 0;
-    position_t grid_center = {grid_db[grid_idx].center_x, grid_db[grid_idx].center_y};
-    
-    /* Check existing sensors in database - deterministic approach */
-    for (uint8_t i = 0; i < num_sensors; i++) {
-        if (sensor_db[i].sensor_status == 0) { /* Only count idle sensors */
-            position_t sensor_pos = {sensor_db[i].x_coord, sensor_db[i].y_coord};
-            double distance = calculate_distance(grid_center, sensor_pos);
-            
-            if (distance <= SENSOR_PERCEPTION_RANGE) {
-                sensor_count++;
-            }
-        }
-    }
-    
-    LOG_INFO("Grid_%d contains %d idle sensors within range\n", 
-             grid_db[grid_idx].grid_id, sensor_count);
-    
-    /* Add some random sensors for simulation */
-    if (sensor_count == 0 && (random_rand() % 100) < 30) { /* 30% chance */
-        sensor_count = 1 + (random_rand() % 3); /* 1-3 sensors */
-    }
-    
-    return sensor_count;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Topology Discovery Phase - Algorithm 3 */
-static void topology_discovery_phase(position_t la_center)
-{
-    LOG_INFO("=== TOPOLOGY DISCOVERY PHASE ===\n");
-    LOG_INFO("Robot_%d moves to center of LA_%d\n", robot_id, current_la_id);
-    
-    /* Step 1: Move Robot_p to centre of LA_q */
-    move_robot_to_position(la_center);
-    
-    /* Step 2: Broadcast message Mp to discover sensors */
-    robot_broadcast_msg_t broadcast_msg;
-    broadcast_msg.msg_type = WSN_MSG_TYPE_ROBOT_BROADCAST;
-    broadcast_msg.robot_id = robot_id;
-    
-    uip_ipaddr_t dest_ipaddr;
-    uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
-    
-    simple_udp_sendto(&udp_conn, &broadcast_msg, sizeof(broadcast_msg), &dest_ipaddr);
-    
-    LOG_INFO("Robot_%d broadcasts Mp message for sensor discovery\n", robot_id);
-    
-    /* Step 3: Receive responses (Sensor_M) from sensors within perception range */
-    /* Step 4: Update Sensor_DB with Sensor_M information */
-    
-    /* Initialize sensor database */
-    num_sensors = 0;
-    
-    /* For simulation, populate with some sensors based on random deployment */
-    uint8_t discovered_sensors = 5 + (random_rand() % 6); /* 5-10 sensors */
-    
-    for (uint8_t i = 0; i < discovered_sensors && i < WSN_DEPLOYMENT_CONF_MAX_SENSORS; i++) {
-        sensor_db[i].sensor_id = i + 1;
-        /* Random position within LA */
-        sensor_db[i].x_coord = la_center.x + ((random_rand() % ROBOT_PERCEPTION_RANGE) - ROBOT_PERCEPTION_RANGE/2);
-        sensor_db[i].y_coord = la_center.y + ((random_rand() % ROBOT_PERCEPTION_RANGE) - ROBOT_PERCEPTION_RANGE/2);
-        sensor_db[i].sensor_status = 0; /* Initially idle */
-        num_sensors++;
-        
-        LOG_INFO("Discovered Sensor_%d at (%d, %d), status: idle\n",
-                 sensor_db[i].sensor_id, sensor_db[i].x_coord, sensor_db[i].y_coord);
-    }
-    
-    LOG_INFO("Topology discovery completed. Found %d sensors in Sensor_DB\n", num_sensors);
-    LOG_INFO("=== END TOPOLOGY DISCOVERY PHASE ===\n");
-}
-
-/*---------------------------------------------------------------------------*/
-/* Dispersion Phase Case 1: Robot has sensors and grid has sensors */
-static void dispersion_case1(uint8_t grid_idx)
-{
-    LOG_INFO("=== DISPERSION CASE 1 ===\n");
-    LOG_INFO("Robot has sensors (Stock_RS=%d) AND Grid_%d has sensors\n", 
-             stock_rs, grid_db[grid_idx].grid_id);
-    
-    position_t grid_center = {grid_db[grid_idx].center_x, grid_db[grid_idx].center_y};
-    
-    /* Place a sensor from Stock_RS at the centre of Grid_i */
-    if (stock_rs > 0) {
-        /* Add active sensor record to Sensor_DB */
-        sensor_db[num_sensors].sensor_id = 100 + num_sensors; /* Different ID range for deployed sensors */
-        sensor_db[num_sensors].x_coord = grid_center.x;
-        sensor_db[num_sensors].y_coord = grid_center.y;
-        sensor_db[num_sensors].sensor_status = 1; /* Active */
-        num_sensors++;
-        
-        stock_rs--; /* Remove sensor from stock */
-        
-        LOG_INFO("Placed active sensor at grid center (%d, %d)\n", grid_center.x, grid_center.y);
-        
-        /* Collect all extra sensors from Grid_i till Stock_RS < 15 */
-        uint8_t extra_sensors = count_sensors_in_grid(grid_idx);
-        uint8_t collected = 0;
-        
-        while (extra_sensors > 0 && stock_rs < ROBOT_CAPACITY) {
-            stock_rs++;
-            extra_sensors--;
-            collected++;
-        }
-        
-        if (collected > 0) {
-            LOG_INFO("Collected %d extra sensors, Stock_RS now: %d\n", collected, stock_rs);
-        }
-        
-        /* Consider Grid_i as covered */
-        grid_db[grid_idx].grid_status = 1;
-        
-        LOG_INFO("Grid_%d marked as COVERED\n", grid_db[grid_idx].grid_id);
-    }
-    
-    LOG_INFO("=== END CASE 1 ===\n");
-}
-
-/*---------------------------------------------------------------------------*/
-/* Dispersion Phase Case 2: Robot has sensors but grid has no sensors */
-static void dispersion_case2(uint8_t grid_idx)
-{
-    LOG_INFO("=== DISPERSION CASE 2 ===\n");
-    LOG_INFO("Robot has sensors (Stock_RS=%d) BUT Grid_%d has NO sensors\n", 
-             stock_rs, grid_db[grid_idx].grid_id);
-    
-    position_t grid_center = {grid_db[grid_idx].center_x, grid_db[grid_idx].center_y};
-    
-    /* Place a sensor from Stock_RS at the centre of Grid_i */
-    if (stock_rs > 0) {
-        /* Add active sensor record to Sensor_DB */
-        sensor_db[num_sensors].sensor_id = 100 + num_sensors;
-        sensor_db[num_sensors].x_coord = grid_center.x;
-        sensor_db[num_sensors].y_coord = grid_center.y;
-        sensor_db[num_sensors].sensor_status = 1; /* Active */
-        num_sensors++;
-        
-        stock_rs--; /* Remove sensor from stock */
-        
-        LOG_INFO("Placed active sensor at grid center (%d, %d)\n", grid_center.x, grid_center.y);
-        
-        /* Mark grid as covered */
-        grid_db[grid_idx].grid_status = 1;
-        
-        LOG_INFO("Grid_%d marked as COVERED\n", grid_db[grid_idx].grid_id);
-    }
-    
-    LOG_INFO("=== END CASE 2 ===\n");
-}
-
-/*---------------------------------------------------------------------------*/
-/* Dispersion Phase Case 3: Robot has no sensors but grid has sensors */
-static void dispersion_case3(uint8_t grid_idx)
-{
-    LOG_INFO("=== DISPERSION CASE 3 ===\n");
-    LOG_INFO("Robot has NO sensors (Stock_RS=%d) BUT Grid_%d has sensors\n", 
-             stock_rs, grid_db[grid_idx].grid_id);
-    
-    position_t grid_center = {grid_db[grid_idx].center_x, grid_db[grid_idx].center_y};
-    
-    /* Find closest sensor to grid center and move it there */
-    uint8_t closest_sensor = 0;
-    double min_distance = INFINITY;
-    bool found_sensor = false;
-    
-    for (uint8_t i = 0; i < num_sensors; i++) {
-        if (sensor_db[i].sensor_status == 0) { /* Idle sensor */
-            position_t sensor_pos = {sensor_db[i].x_coord, sensor_db[i].y_coord};
-            double distance = calculate_distance(grid_center, sensor_pos);
-            
-            if (distance < min_distance && distance <= ROBOT_PERCEPTION_RANGE) {
-                min_distance = distance;
-                closest_sensor = i;
-                found_sensor = true;
-            }
-        }
-    }
-    
-    if (found_sensor) {
-        /* Update sensor position to grid center and make it active */
-        LOG_INFO("Moving closest sensor (%.2f m away) to grid center\n", min_distance);
-        
-        sensor_db[closest_sensor].x_coord = grid_center.x;
-        sensor_db[closest_sensor].y_coord = grid_center.y;
-        sensor_db[closest_sensor].sensor_status = 1; /* Active */
-        
-        /* Collect extra sensors from grid */
-        uint8_t extra_sensors = count_sensors_in_grid(grid_idx) - 1; /* Minus the one we just moved */
-        uint8_t collected = 0;
-        
-        while (extra_sensors > 0 && stock_rs < ROBOT_CAPACITY) {
-            stock_rs++;
-            extra_sensors--;
-            collected++;
-        }
-        
-        if (collected > 0) {
-            LOG_INFO("Collected %d extra sensors, Stock_RS now: %d\n", collected, stock_rs);
-        }
-        
-        /* Mark grid as covered */
-        grid_db[grid_idx].grid_status = 1;
-        
-        LOG_INFO("Grid_%d marked as COVERED\n", grid_db[grid_idx].grid_id);
-    } else {
-        LOG_INFO("No suitable sensor found for relocation\n");
-    }
-    
-    LOG_INFO("=== END CASE 3 ===\n");
-}
-
-/*---------------------------------------------------------------------------*/
-/* Dispersion Phase Case 4: Robot has no sensors and grid has no sensors */
-static void dispersion_case4(uint8_t grid_idx)
-{
-    LOG_INFO("=== DISPERSION CASE 4 ===\n");
-    LOG_INFO("Robot has NO sensors (Stock_RS=%d) AND Grid_%d has NO sensors\n", 
-             stock_rs, grid_db[grid_idx].grid_id);
-    
-    /* Grid remains uncovered */
-    LOG_INFO("Grid_%d remains UNCOVERED\n", grid_db[grid_idx].grid_id);
-    
-    LOG_INFO("=== END CASE 4 ===\n");
-}
-
-/*---------------------------------------------------------------------------*/
-/* Execute Dispersion Phase - Algorithm 4 */
-static void dispersion_phase(void)
-{
-    LOG_INFO("=== DISPERSION PHASE ===\n");
-    LOG_INFO("Starting with NO_P = %d (permissible moves)\n", no_p);
-    
-    uint8_t current_grid = 0; /* Start with first grid */
-    
-    /* Algorithm 4: while NO_P > 0 do */
-    while (no_p > 0) {
-        LOG_INFO("\n--- Move %d (NO_P = %d) ---\n", (NO_G - no_p + 1), no_p);
-        
-        /* Move to current grid */
-        position_t grid_pos = {grid_db[current_grid].center_x, grid_db[current_grid].center_y};
-        move_robot_to_position(grid_pos);
-        
-        /* Determine which case applies */
-        uint8_t sensors_in_grid = count_sensors_in_grid(current_grid);
-        bool robot_has_sensors = (stock_rs > 0);
-        bool grid_has_sensors = (sensors_in_grid > 0);
-        
-        LOG_INFO("At Grid_%d: Robot sensors=%d, Grid sensors=%d\n", 
-                 grid_db[current_grid].grid_id, stock_rs, sensors_in_grid);
-        
-        /* Execute appropriate case */
-        if (robot_has_sensors && grid_has_sensors) {
-            dispersion_case1(current_grid);
-        } else if (robot_has_sensors && !grid_has_sensors) {
-            dispersion_case2(current_grid);
-        } else if (!robot_has_sensors && grid_has_sensors) {
-            dispersion_case3(current_grid);
-        } else {
-            dispersion_case4(current_grid);
-        }
-        
-        /* Decrement NO_P by 1 */
-        no_p--;
-        
-        /* Find nearest uncovered grid for next iteration */
-        if (no_p > 0) {
-            current_grid = find_nearest_uncovered_grid();
-        }
-        
-        LOG_INFO("Moves remaining: %d\n", no_p);
-    }
-    
-    LOG_INFO("=== END DISPERSION PHASE ===\n");
-}
-
-/*---------------------------------------------------------------------------*/
-/* Send report to base station with improved reliability */
-static void send_report_to_bs(void)
-{
-    robot_report_msg_t report;
-    report.msg_type = WSN_MSG_TYPE_ROBOT_REPORT;
-    report.robot_id = robot_id;
-    report.covered_grids = 0;
-    
-    /* Count covered grids */
-    for (uint8_t i = 0; i < num_grids; i++) {
-        if (grid_db[i].grid_status == 1) {
-            report.covered_grids++;
-        }
-    }
-    
-    uip_ipaddr_t dest_ipaddr;
-    
-    LOG_INFO("Robot_%d sending report to BS: %d grids covered\n", robot_id, report.covered_grids);
-    
-    /* Send using multicast with multiple attempts for reliability */
-    uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
-    for (int attempts = 0; attempts < 5; attempts++) {
-        simple_udp_sendto(&udp_conn, &report, sizeof(report), &dest_ipaddr);
-        LOG_INFO("Sent report attempt %d to BS\n", attempts + 1);
-        clock_delay(CLOCK_SECOND / 10); /* 100ms delay between attempts */
-    }
-    
-    /* Also try direct addressing to base station */
-    uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 0x0201, 0x0001, 0x0001, 0x0001);
-    for (int attempts = 0; attempts < 3; attempts++) {
-        simple_udp_sendto(&udp_conn, &report, sizeof(report), &dest_ipaddr);
-        LOG_INFO("Sent direct report attempt %d to BS\n", attempts + 1);
-        clock_delay(CLOCK_SECOND / 10);
-    }
-    
-    LOG_INFO("Robot_%d completed sending report to BS\n", robot_id);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Execute local phase in assigned LA - ALGORITHM 2 IMPLEMENTATION */
-static void execute_local_phase(uint8_t la_id, position_t la_center)
-{
-    LOG_INFO("\n=== LOCAL PHASE START ===\n");
-    LOG_INFO("Robot_%d executing local phase in LA_%d\n", robot_id, la_id);
-    
-    current_la_id = la_id;
-    local_phase_active = true;
-    
-    /* Algorithm 2 Step 1-2: Divide LA into NO_G grids and insert into Grid_DB */
-    init_grid_db(la_center);
-    
-    /* Algorithm 2 Step 3: Topology Discovery Phase */
-    topology_discovery_phase(la_center);
-    
-    /* Algorithm 2 Step 4: Initialize NO_P = NO_G */
-    no_p = num_grids;
-    LOG_INFO("Initialized NO_P = %d (number of permissible moves)\n", no_p);
-    
-    /* Algorithm 2 Step 5: Dispersion Phase */
-    dispersion_phase();
-    
-    /* Algorithm 2 Step 6-8: Count covered grids and send report */
-    uint8_t covered_grids = 0;
-    for (uint8_t i = 0; i < num_grids; i++) {
-        if (grid_db[i].grid_status == 1) {
+    // Step 6-8: Count covered grids and send message to BS
+    uint32_t covered_grids = 0;
+    for (uint32_t i = 0; i < robot->no_g; i++) {
+        if (robot->grid_db[i].grid_status == COVERED) {
             covered_grids++;
         }
     }
     
-    /* Calculate total energy using paper's formula */
-    total_energy_consumed = calculate_total_robot_energy();
+    printf("Robot_%d completed local phase. Covered grids: %u/%u\n", 
+           robot->robot_id + 1, covered_grids, robot->no_g);
     
-    LOG_INFO("=== LOCAL PHASE COMPLETE ===\n");
-    LOG_INFO("Covered grids in LA_%d: %d out of %d\n", current_la_id, covered_grids, num_grids);
-    LOG_INFO("Total energy consumed: %.4f J\n", total_energy_consumed);
-    LOG_INFO("Distance traveled: %.2f m\n", distance_traveled);
-    
-    /* Print energy breakdown */
-    LOG_INFO("Energy breakdown:\n");
-    LOG_INFO("  Baseline: %.4f J\n", baseline_energy_robot);
-    LOG_INFO("  Radio: %.4f J\n", radio_energy_robot);
-    LOG_INFO("  Mobility: %.4f J\n", mobility_energy);
-    LOG_INFO("  Total: %.4f J\n", total_energy_consumed);
-    
-    /* Algorithm 2 Step 8: Send Robot_pM message to BS */
-    send_report_to_bs();
-    
-    /* Reset NO_P to initial value for next LA */
-    no_p = num_grids;
-    local_phase_active = false;
-    
-    LOG_INFO("=== LOCAL PHASE END ===\n");
+    // Create and send completion message to BS
+    robot_message_t completion_msg = create_completion_message(robot);
+    printf("Robot_%d sending completion message to BS: (%u, %u)\n", 
+           robot->robot_id + 1, completion_msg.robot_id, completion_msg.no_grid);
 }
 
-/*---------------------------------------------------------------------------*/
-/* Handle LA assignment from base station */
-static void handle_la_assignment(uint8_t la_id, int16_t center_x, int16_t center_y)
-{
-    LOG_INFO("Robot_%d assigned to LA_%d at center (%d, %d)\n", 
-             robot_id, la_id, center_x, center_y);
+// Divide assigned LA into grids
+void divide_la_into_grids(mobile_robot_t *robot) {
+    printf("Robot_%d dividing LA_%u into %u grids\n", 
+           robot->robot_id + 1, robot->assigned_la_id, robot->no_g);
     
-    position_t la_center = {center_x, center_y};
-    execute_local_phase(la_id, la_center);
+    float grid_size = sensor_perception_range;
+    float start_x = robot->la_center.x - (robot_perception_range / 2) + (grid_size / 2);
+    float start_y = robot->la_center.y - (robot_perception_range / 2) + (grid_size / 2);
+    
+    uint32_t grids_per_row = (uint32_t)sqrt(robot->no_g);
+    
+    for (uint32_t i = 0; i < robot->no_g; i++) {
+        robot->grid_db[i].grid_id = i + 1;
+        
+        uint32_t row = i / grids_per_row;
+        uint32_t col = i % grids_per_row;
+        
+        robot->grid_db[i].center_coord.x = start_x + col * grid_size;
+        robot->grid_db[i].center_coord.y = start_y + row * grid_size;
+        robot->grid_db[i].grid_status = UNCOVERED;  // Initially uncovered
+        
+        printf("Grid_%u: Center(%.2f, %.2f), Status: %s\n", 
+               robot->grid_db[i].grid_id,
+               robot->grid_db[i].center_coord.x,
+               robot->grid_db[i].center_coord.y,
+               robot->grid_db[i].grid_status == COVERED ? "COVERED" : "UNCOVERED");
+    }
 }
 
-/*---------------------------------------------------------------------------*/
-/* UDP callback function - IMPROVED VERSION WITH ACK HANDLING */
-static void udp_rx_callback(struct simple_udp_connection *c,
-                           const uip_ipaddr_t *sender_addr,
-                           uint16_t sender_port,
-                           const uip_ipaddr_t *receiver_addr,
-                           uint16_t receiver_port,
-                           const uint8_t *data,
-                           uint16_t datalen)
-{
-    LOG_INFO("Robot_%d received UDP message from port %d, length: %d\n", 
-             robot_id, sender_port, datalen);
+// Algorithm 3: Topology Discovery Phase
+void topology_discovery_phase(mobile_robot_t *robot) {
+    printf("\n--- Robot_%d Topology Discovery Phase ---\n", robot->robot_id + 1);
     
-    /* Print sender address for debugging */
-    LOG_INFO("Sender address: ");
-    LOG_INFO_6ADDR(sender_addr);
-    LOG_INFO_("\n");
+    // Step 1: Move Robot_p to centre of LA_q
+    robot->current_position = robot->la_center;
+    printf("Robot_%d moved to center of LA_%u at (%.2f, %.2f)\n", 
+           robot->robot_id + 1, robot->assigned_la_id, 
+           robot->current_position.x, robot->current_position.y);
     
-    /* Print first few bytes for debugging */
-    if (datalen > 0) {
-        LOG_INFO("Message content: [0x%02x", data[0]);
-        for (int i = 1; i < MIN(datalen, 8); i++) {
-            LOG_INFO(" 0x%02x", data[i]);
-        }
-        LOG_INFO("]\n");
+    // Step 2: Broadcast message (Mp) to discover sensors
+    broadcast_robot_message(robot);
+    
+    // Step 3: Receive responses from sensors within perception range
+    uint32_t reply_count = 0;
+    sensor_reply_message_t *replies = receive_sensor_replies(robot, &reply_count);
+    
+    // Step 4: Update Sensor_DB with Sensor_M information
+    robot->sensor_db_count = 0;
+    for (uint32_t i = 0; i < reply_count; i++) {
+        robot->sensor_db[robot->sensor_db_count] = (sensor_db_record_t){
+            .sensor_id = replies[i].sensor_id,
+            .coord = replies[i].coord,
+            .sensor_status = IDLE  // Mark as idle initially
+        };
+        robot->sensor_db_count++;
+        
+        printf("Discovered Sensor_%u at (%.2f, %.2f), Status: IDLE\n", 
+               replies[i].sensor_id, replies[i].coord.x, replies[i].coord.y);
     }
     
-    /* Handle LA assignment from base station */
-    if (datalen == sizeof(la_assignment_msg_t)) {
-        la_assignment_msg_t *assignment = (la_assignment_msg_t *)data;
+    printf("Topology discovery completed. Found %u sensors in perception range.\n", 
+           robot->sensor_db_count);
+    
+    if (replies) free(replies);
+}
+
+// Broadcast robot message for topology discovery
+void broadcast_robot_message(mobile_robot_t *robot) {
+    robot_broadcast_message_t broadcast = {robot->robot_id};
+    printf("Robot_%d broadcasting discovery message Mp(%u)\n", 
+           robot->robot_id + 1, broadcast.robot_id);
+}
+
+// Simulate receiving sensor replies
+sensor_reply_message_t* receive_sensor_replies(mobile_robot_t *robot, uint32_t *reply_count) {
+    // Simulate randomly deployed sensors in the LA
+    // In real implementation, this would be actual network communication
+    
+    uint32_t estimated_sensors = robot->no_g * 2;  // Estimate 2 sensors per grid
+    sensor_reply_message_t *replies = malloc(estimated_sensors * sizeof(sensor_reply_message_t));
+    *reply_count = 0;
+    
+    // Generate random sensors within robot's perception range
+    srand(robot->robot_id + robot->assigned_la_id);  // Deterministic for testing
+    
+    for (uint32_t i = 0; i < estimated_sensors; i++) {
+        coordinate_t sensor_pos;
+        sensor_pos.x = robot->current_position.x + 
+                      ((float)rand() / RAND_MAX - 0.5) * robot_perception_range;
+        sensor_pos.y = robot->current_position.y + 
+                      ((float)rand() / RAND_MAX - 0.5) * robot_perception_range;
         
-        LOG_INFO("Parsed: msg_type=%d, robot_id=%d, la_id=%d, center=(%d,%d)\n",
-                 assignment->msg_type, assignment->robot_id, assignment->la_id,
-                 assignment->center_x, assignment->center_y);
+        // Check if sensor is within perception range
+        float distance = calculate_distance(robot->current_position, sensor_pos);
+        if (distance <= robot_perception_range / 2) {
+            replies[*reply_count] = (sensor_reply_message_t){
+                .sensor_id = robot->assigned_la_id * 100 + i + 1,
+                .coord = sensor_pos,
+                .sensor_status = IDLE
+            };
+            (*reply_count)++;
+        }
+    }
+    
+    return replies;
+}
+
+// Algorithm 4: Dispersion Phase
+void dispersion_phase(mobile_robot_t *robot) {
+    printf("\n--- Robot_%d Dispersion Phase ---\n", robot->robot_id + 1);
+    
+    uint32_t current_grid = 0;
+    
+    // Algorithm 4: while NO_P > 0 do
+    while (robot->no_p > 0) {
+        printf("\nProcessing Grid_%u (NO_P remaining: %u)\n", 
+               current_grid + 1, robot->no_p);
         
-        if (assignment->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT) {
-            /* Accept assignment for this robot */
-            if (assignment->robot_id == robot_id) {
-                LOG_INFO("*** Robot_%d ACCEPTING DIRECT LA assignment: LA_%d at (%d, %d) ***\n",
-                         robot_id, assignment->la_id, assignment->center_x, assignment->center_y);
-                
-                assignment_received = true;
-                pending_assignment = *assignment;
-                
-                /* Send immediate acknowledgment */
-                send_assignment_ack_to_bs();
-                
-                /* Trigger immediate processing */
-                process_post(&mobile_robot_process, PROCESS_EVENT_CONTINUE, assignment);
-                
-            } else {
-                LOG_INFO("Robot_%d ignoring assignment for Robot_%d\n", 
-                         robot_id, assignment->robot_id);
+        // Count sensors in current grid
+        uint32_t sensors_in_grid = 0;
+        for (uint32_t i = 0; i < robot->sensor_db_count; i++) {
+            float distance = calculate_distance(robot->grid_db[current_grid].center_coord, 
+                                              robot->sensor_db[i].coord);
+            if (distance <= sensor_perception_range / 2) {
+                sensors_in_grid++;
             }
+        }
+        
+        // Determine which case applies
+        if (robot->stock_rs > 0 && sensors_in_grid > 0) {
+            // Case 1: Robot has sensors in Stock_RS and G_i has sensors
+            handle_dispersion_case_1(robot, current_grid);
+        } else if (robot->stock_rs > 0 && sensors_in_grid == 0) {
+            // Case 2: Robot has sensors in Stock_RS but G_i has no sensors
+            handle_dispersion_case_2(robot, current_grid);
+        } else if (robot->stock_rs == 0 && sensors_in_grid > 0) {
+            // Case 3: Robot has no sensors in Stock_RS but G_i has sensors
+            handle_dispersion_case_3(robot, current_grid);
         } else {
-            LOG_INFO("Robot_%d: unexpected message type %d\n", robot_id, assignment->msg_type);
+            // Case 4: Robot has no sensors in Stock_RS and G_i has no sensors
+            handle_dispersion_case_4(robot, current_grid);
+        }
+        
+        // Decrement NO_P by 1
+        robot->no_p--;
+        
+        // Find the nearest uncovered grid
+        current_grid = find_nearest_uncovered_grid(robot, current_grid);
+        if (current_grid >= robot->no_g) {
+            break;  // No more uncovered grids
         }
     }
-    /* Handle acknowledgment from base station */
-    else if (datalen == 3 && data[0] == WSN_MSG_TYPE_ACK) {
-        uint8_t ack_robot_id = data[1];
-        uint8_t status = data[2];
-        
-        if (ack_robot_id == robot_id) {
-            LOG_INFO("Robot_%d received acknowledgment from BS (status: %d)\n", robot_id, status);
-        }
-    }
-    /* Handle sensor replies during topology discovery */
-    else if (datalen == sizeof(sensor_reply_msg_t)) {
-        sensor_reply_msg_t *reply = (sensor_reply_msg_t *)data;
-        
-        if (reply->msg_type == WSN_MSG_TYPE_SENSOR_REPLY && local_phase_active) {
-            /* Add sensor to database if within range */
-            if (num_sensors < WSN_DEPLOYMENT_CONF_MAX_SENSORS) {
-                sensor_db[num_sensors].sensor_id = reply->sensor_id;
-                sensor_db[num_sensors].x_coord = reply->x_coord;
-                sensor_db[num_sensors].y_coord = reply->y_coord;
-                sensor_db[num_sensors].sensor_status = reply->sensor_status;
-                num_sensors++;
+    
+    printf("Dispersion phase completed. NO_P = %u\n", robot->no_p);
+}
+
+// Case 1: Robot has sensors in Stock_RS and G_i has sensors
+void handle_dispersion_case_1(mobile_robot_t *robot, uint32_t grid_id) {
+    printf("Executing Case 1 for Grid_%u\n", grid_id + 1);
+    
+    // Place a sensor from Stock_RS at the centre of G_i
+    uint32_t new_sensor_id = robot->assigned_la_id * 1000 + grid_id + 1;
+    
+    // Add new sensor to sensor_DB
+    robot->sensor_db[robot->sensor_db_count] = (sensor_db_record_t){
+        .sensor_id = new_sensor_id,
+        .coord = robot->grid_db[grid_id].center_coord,
+        .sensor_status = ACTIVE
+    };
+    robot->sensor_db_count++;
+    robot->stock_rs--;
+    
+    printf("Placed Sensor_%u at grid center (%.2f, %.2f), Status: ACTIVE\n", 
+           new_sensor_id, robot->grid_db[grid_id].center_coord.x, 
+           robot->grid_db[grid_id].center_coord.y);
+    
+    // Collect extra sensors from G_i until Stock_RS capacity is reached
+    uint32_t collected = 0;
+    for (uint32_t i = 0; i < robot->sensor_db_count && robot->stock_rs < ROBOT_CAPACITY; i++) {
+        if (robot->sensor_db[i].sensor_id != new_sensor_id) {
+            float distance = calculate_distance(robot->grid_db[grid_id].center_coord, 
+                                              robot->sensor_db[i].coord);
+            if (distance <= sensor_perception_range / 2 && robot->sensor_db[i].sensor_status == IDLE) {
+                // Collect this sensor
+                robot->stock_rs++;
+                collected++;
                 
-                LOG_INFO("Added Sensor_%d to Sensor_DB: (%d, %d), status: %d\n",
-                         reply->sensor_id, reply->x_coord, reply->y_coord, reply->sensor_status);
+                // Remove from sensor_DB by marking as collected
+                robot->sensor_db[i].sensor_status = ACTIVE;  // Mark as removed
+                printf("Collected Sensor_%u from grid\n", robot->sensor_db[i].sensor_id);
             }
         }
-    } else {
-        LOG_INFO("Robot_%d: unexpected message size %d (expected %d or %d)\n", 
-                 robot_id, datalen, (int)sizeof(la_assignment_msg_t), (int)sizeof(sensor_reply_msg_t));
-    }
-}
-
-/*---------------------------------------------------------------------------*/
-/* Print robot statistics */
-static void print_robot_statistics(void)
-{
-    LOG_INFO("=== ROBOT STATISTICS ===\n");
-    LOG_INFO("Robot ID: %d\n", robot_id);
-    LOG_INFO("Current Position: (%d, %d)\n", current_position.x, current_position.y);
-    LOG_INFO("Current LA: %d\n", current_la_id);
-    LOG_INFO("Sensor Stock: %d/%d\n", stock_rs, ROBOT_CAPACITY);
-    LOG_INFO("Distance Traveled: %.2f m\n", distance_traveled);
-    LOG_INFO("Total Energy: %.4f J\n", total_energy_consumed);
-    LOG_INFO("  - Baseline: %.4f J\n", baseline_energy_robot);
-    LOG_INFO("  - Radio: %.4f J\n", radio_energy_robot);
-    LOG_INFO("  - Mobility: %.4f J\n", mobility_energy);
-    LOG_INFO("Sensors in DB: %d\n", num_sensors);
-    LOG_INFO("Grids in DB: %d\n", num_grids);
-    LOG_INFO("Assignment received: %s\n", assignment_received ? "Yes" : "No");
-}
-
-/*---------------------------------------------------------------------------*/
-/* Send assignment acknowledgment to base station */
-static void send_assignment_ack_to_bs(void)
-{
-    typedef struct {
-        uint8_t msg_type;
-        uint8_t robot_id;
-        uint8_t status; /* 0 = assignment received */
-    } robot_ack_msg_t;
-    
-    robot_ack_msg_t ack;
-    ack.msg_type = WSN_MSG_TYPE_ACK;
-    ack.robot_id = robot_id;
-    ack.status = 0; /* Assignment received */
-    
-    uip_ipaddr_t dest_ipaddr;
-    
-    /* Send to base station using multicast */
-    uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
-    simple_udp_sendto(&udp_conn, &ack, sizeof(ack), &dest_ipaddr);
-    
-    /* Also try direct addressing to base station */
-    uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 0x0201, 0x0001, 0x0001, 0x0001);
-    simple_udp_sendto(&udp_conn, &ack, sizeof(ack), &dest_ipaddr);
-    
-    LOG_INFO("Robot_%d sent assignment acknowledgment to BS\n", robot_id);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Send ready signal to base station */
-static void send_ready_signal_to_bs(void)
-{
-    typedef struct {
-        uint8_t msg_type;
-        uint8_t robot_id;
-        uint8_t status; /* 1 = ready for assignment */
-    } robot_ready_msg_t;
-    
-    robot_ready_msg_t ready;
-    ready.msg_type = WSN_MSG_TYPE_ACK;
-    ready.robot_id = robot_id;
-    ready.status = 1; /* Ready for assignment */
-    
-    uip_ipaddr_t dest_ipaddr;
-    
-    /* Send ready signal using multicast */
-    uip_create_linklocal_allnodes_mcast(&dest_ipaddr);
-    simple_udp_sendto(&udp_conn, &ready, sizeof(ready), &dest_ipaddr);
-    
-    /* Also try direct addressing to base station */
-    uip_ip6addr(&dest_ipaddr, 0xfe80, 0, 0, 0, 0x0201, 0x0001, 0x0001, 0x0001);
-    simple_udp_sendto(&udp_conn, &ready, sizeof(ready), &dest_ipaddr);
-    
-    LOG_INFO("Robot_%d sent ready signal to BS\n", robot_id);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Mobile Robot Process Thread - IMPROVED FOR PARALLEL PROCESSING */
-PROCESS_THREAD(mobile_robot_process, ev, data)
-{
-    static struct etimer timer, startup_timer;
-    
-    PROCESS_BEGIN();
-    
-    /* Initialize robot */
-    robot_id = node_id;
-    
-    /* Set initial position to match simulation configuration */
-    if (robot_id == 2) {
-        current_position.x = 100;  /* Near LA_1 center */
-        current_position.y = 100;
-    } else if (robot_id == 3) {
-        current_position.x = 900;  /* Near LA_5 center */
-        current_position.y = 900;
-    } else {
-        /* Default position for other robots */
-        current_position.x = 500;
-        current_position.y = 500;
     }
     
-    energy_last_update = clock_time();
+    // Mark G_i as covered
+    robot->grid_db[grid_id].grid_status = COVERED;
+    printf("Grid_%u marked as COVERED\n", grid_id + 1);
+}
+
+// Case 2: Robot has sensors in Stock_RS but G_i has no sensors
+void handle_dispersion_case_2(mobile_robot_t *robot, uint32_t grid_id) {
+    printf("Executing Case 2 for Grid_%u\n", grid_id + 1);
     
-    LOG_INFO("Starting Mobile Robot_%d (Parallel Processing Mode)\n", robot_id);
-    LOG_INFO("Robot_%d initial position: (%d, %d)\n", robot_id, current_position.x, current_position.y);
-    LOG_INFO("Initial sensor stock: %d\n", stock_rs);
+    // Place a sensor from Stock_RS at the centre of G_i
+    uint32_t new_sensor_id = robot->assigned_la_id * 1000 + grid_id + 1;
     
-    /* Initialize UDP connection with swapped ports for proper communication */
-    simple_udp_register(&udp_conn, UDP_CLIENT_PORT, NULL,
-                       UDP_SERVER_PORT, udp_rx_callback);
+    // Add new sensor to sensor_DB
+    robot->sensor_db[robot->sensor_db_count] = (sensor_db_record_t){
+        .sensor_id = new_sensor_id,
+        .coord = robot->grid_db[grid_id].center_coord,
+        .sensor_status = ACTIVE
+    };
+    robot->sensor_db_count++;
+    robot->stock_rs--;
     
-    LOG_INFO("Robot_%d UDP connection registered - listening on port %d, sending to port %d\n",
-             robot_id, UDP_CLIENT_PORT, UDP_SERVER_PORT);
+    printf("Placed Sensor_%u at grid center (%.2f, %.2f), Status: ACTIVE\n", 
+           new_sensor_id, robot->grid_db[grid_id].center_coord.x, 
+           robot->grid_db[grid_id].center_coord.y);
     
-    /* Staggered startup to avoid network congestion */
-    if (robot_id == 2) {
-        etimer_set(&startup_timer, 10 * CLOCK_SECOND);
-    } else {
-        etimer_set(&startup_timer, 12 * CLOCK_SECOND); /* Slight delay for Robot_3 */
-    }
-    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&startup_timer));
+    // Mark G_i as covered
+    robot->grid_db[grid_id].grid_status = COVERED;
+    printf("Grid_%u marked as COVERED\n", grid_id + 1);
+}
+
+// Case 3: Robot has no sensors in Stock_RS but G_i has sensors
+void handle_dispersion_case_3(mobile_robot_t *robot, uint32_t grid_id) {
+    printf("Executing Case 3 for Grid_%u\n", grid_id + 1);
     
-    LOG_INFO("Robot_%d ready and waiting for LA assignment from BS (Parallel Mode)\n", robot_id);
+    // Find sensor with minimum distance to grid center
+    uint32_t closest_sensor_idx = UINT32_MAX;
+    float min_distance = INFINITY;
     
-    /* Send ready signal to base station */
-    send_ready_signal_to_bs();
-    
-    /* Set up statistics reporting */
-    etimer_set(&timer, 10 * CLOCK_SECOND);
-    
-    while (1) {
-        PROCESS_WAIT_EVENT();
-        
-        if (ev == PROCESS_EVENT_TIMER && data == &timer) {
-            update_robot_energy();
-            print_robot_statistics();
-            
-            /* Check if we've received an assignment and process it */
-            if (assignment_received && !local_phase_active) {
-                LOG_INFO("Robot_%d processing delayed LA assignment\n", robot_id);
-                handle_la_assignment(pending_assignment.la_id, 
-                                   pending_assignment.center_x, 
-                                   pending_assignment.center_y);
-                assignment_received = false; /* Reset flag */
+    for (uint32_t i = 0; i < robot->sensor_db_count; i++) {
+        if (robot->sensor_db[i].sensor_status == IDLE) {
+            float distance = calculate_distance(robot->grid_db[grid_id].center_coord, 
+                                              robot->sensor_db[i].coord);
+            if (distance <= sensor_perception_range / 2 && distance < min_distance) {
+                min_distance = distance;
+                closest_sensor_idx = i;
             }
-            
-            /* Reset timer */
-            etimer_set(&timer, 10 * CLOCK_SECOND);
         }
-        else if (ev == PROCESS_EVENT_CONTINUE) {
-            /* Handle LA assignment from base station */
-            if (data != NULL) {
-                la_assignment_msg_t *assignment = (la_assignment_msg_t *)data;
-                
-                if (assignment->msg_type == WSN_MSG_TYPE_LA_ASSIGNMENT && !local_phase_active) {
-                    LOG_INFO("Robot_%d processing LA assignment in main process (Parallel Mode)\n", robot_id);
-                    handle_la_assignment(assignment->la_id, assignment->center_x, assignment->center_y);
-                } else if (local_phase_active) {
-                    LOG_INFO("Robot_%d is busy, deferring assignment\n", robot_id);
-                    assignment_received = true;
-                    pending_assignment = *assignment;
+    }
+    
+    if (closest_sensor_idx != UINT32_MAX) {
+        // Move closest sensor to grid center
+        robot->sensor_db[closest_sensor_idx].coord = robot->grid_db[grid_id].center_coord;
+        robot->sensor_db[closest_sensor_idx].sensor_status = ACTIVE;
+        
+        printf("Moved Sensor_%u to grid center (%.2f, %.2f), Status: ACTIVE\n", 
+               robot->sensor_db[closest_sensor_idx].sensor_id,
+               robot->grid_db[grid_id].center_coord.x, 
+               robot->grid_db[grid_id].center_coord.y);
+        
+        // Collect extra sensors from G_i until Stock_RS capacity is reached
+        for (uint32_t i = 0; i < robot->sensor_db_count && robot->stock_rs < ROBOT_CAPACITY; i++) {
+            if (i != closest_sensor_idx && robot->sensor_db[i].sensor_status == IDLE) {
+                float distance = calculate_distance(robot->grid_db[grid_id].center_coord, 
+                                                  robot->sensor_db[i].coord);
+                if (distance <= sensor_perception_range / 2) {
+                    robot->stock_rs++;
+                    robot->sensor_db[i].sensor_status = ACTIVE;  // Mark as collected
+                    printf("Collected Sensor_%u from grid\n", robot->sensor_db[i].sensor_id);
                 }
             }
         }
+        
+        // Mark G_i as covered
+        robot->grid_db[grid_id].grid_status = COVERED;
+        printf("Grid_%u marked as COVERED\n", grid_id + 1);
     }
-    
-    PROCESS_END();
 }
 
-/*---------------------------------------------------------------------------*/
+// Case 4: Robot has no sensors in Stock_RS and G_i has no sensors
+void handle_dispersion_case_4(mobile_robot_t *robot, uint32_t grid_id) {
+    printf("Executing Case 4 for Grid_%u - leaving uncovered\n", grid_id + 1);
+    // G_i remains uncovered - no action needed
+    robot->grid_db[grid_id].grid_status = UNCOVERED;
+}
+
+// Find nearest uncovered grid
+uint32_t find_nearest_uncovered_grid(mobile_robot_t *robot, uint32_t current_grid) {
+    uint32_t next_grid = current_grid + 1;
+    
+    // Simple linear search for next uncovered grid
+    while (next_grid < robot->no_g && robot->grid_db[next_grid].grid_status == COVERED) {
+        next_grid++;
+    }
+    
+    return next_grid;
+}
+
+// Create completion message for BS
+robot_message_t create_completion_message(mobile_robot_t *robot) {
+    uint32_t covered_grids = 0;
+    
+    // Count covered grids
+    for (uint32_t i = 0; i < robot->no_g; i++) {
+        if (robot->grid_db[i].grid_status == COVERED) {
+            covered_grids++;
+        }
+    }
+    
+    robot_message_t msg = {
+        .robot_id = robot->robot_id,
+        .no_grid = covered_grids
+    };
+    
+    return msg;
+}
+
+// Calculate Euclidean distance between two coordinates
+float calculate_distance(coordinate_t pos1, coordinate_t pos2) {
+    float dx = pos1.x - pos2.x;
+    float dy = pos1.y - pos2.y;
+    return sqrt(dx * dx + dy * dy);
+}
+
+// Cleanup mobile robot resources
+void cleanup_mobile_robot(mobile_robot_t *robot) {
+    if (robot->grid_db) {
+        free(robot->grid_db);
+        robot->grid_db = NULL;
+    }
+    if (robot->sensor_db) {
+        free(robot->sensor_db);
+        robot->sensor_db = NULL;
+    }
+    printf("Robot_%d resources cleaned up\n", robot->robot_id + 1);
+}
+
+// Main function for testing mobile robot functionality
+int main() {
+    printf("=== WSN Deployment Mobile Robot Local Phase ===\n");
+    
+    // Initialize mobile robot
+    mobile_robot_t robot;
+    coordinate_t la_center = {250.0, 250.0};  // Example LA center
+    initialize_mobile_robot(&robot, ROBOT_1, 1, la_center);
+    
+    // Execute local phase
+    execute_local_phase(&robot);
+    
+    // Cleanup
+    cleanup_mobile_robot(&robot);
+    
+    return 0;
+}

@@ -1,0 +1,46 @@
+CONTIKI_PROJECT = wsn-base-station wsn-mobile-robot wsn-sensor-node
+all: $(CONTIKI_PROJECT)
+
+# Project configuration
+CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
+
+# Enable networking
+MODULES += os/net/app-layer/coap
+MODULES += os/net/app-layer/snmp
+
+# Enable logging
+CFLAGS += -DLOG_LEVEL_APP=LOG_LEVEL_INFO
+
+# WSN Deployment specific modules
+PROJECTDIRS += .
+PROJECT_SOURCEFILES += common.c
+
+# Target-specific configurations
+TARGET ?= cooja
+
+# Include the main Contiki-NG makefile
+CONTIKI = ../../../contiki-ng
+include $(CONTIKI)/Makefile.include
+
+# Custom build rules
+wsn-base-station: base-station-contiki.c common.h
+	@echo "Building WSN Base Station for Contiki-NG"
+
+wsn-mobile-robot: mobile-robot-contiki.c common.h
+	@echo "Building WSN Mobile Robot for Contiki-NG"
+
+wsn-sensor-node: sensor-node-contiki.c common.h
+	@echo "Building WSN Sensor Node for Contiki-NG"
+
+# Simulation target
+simulate: $(CONTIKI_PROJECT)
+	@echo "Starting Cooja simulation..."
+	@echo "Use the provided .csc file for simulation setup"
+
+# Clean target
+clean-wsn:
+	rm -f $(CONTIKI_PROJECT)
+	rm -f *.cooja
+	rm -rf obj_*
+
+.PHONY: simulate clean-wsn

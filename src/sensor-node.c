@@ -1,402 +1,257 @@
-/*
- * WSN Deployment Sensor Node Implementation
- 
- * 1. Response to robot discovery messages (Sensor_M)
- * 2. Active/Idle mode energy calculations
- * 3. Comprehensive energy model including baseline, sensing, processing, radio
- * 4. Proper sensor status management
- */
-
-#include "contiki.h"
-#include "net/routing/routing.h"
-#include "net/netstack.h"
-#include "net/ipv6/simple-udp.h"
-#include "sys/log.h"
-#include "sys/node-id.h"
-#include "sys/energest.h"
-#include "random.h"
-#include "wsn-deployment.h"
-#include <stdio.h>
+#include "common.h"
 #include <string.h>
-#include <math.h>
 
-#define LOG_MODULE "Sensor"
-#define LOG_LEVEL LOG_LEVEL_INFO
+// Global sensor registry
+typedef struct {
+    uint32_t sensor_id;
+    coordinate_t position;
+    sensor_status_t status;
+    float battery_level;
+    uint32_t is_active;
+} sensor_node_t;
 
-/* Sensor Node Process */
-PROCESS(sensor_node_process, "Sensor Node Process");
-AUTOSTART_PROCESSES(&sensor_node_process);
+static sensor_node_t sensor_registry[1000];
+static uint32_t sensor_count = 0;
 
-/* Network communication */
-static struct simple_udp_connection udp_conn;
-
-/* Sensor state */
-static uint8_t sensor_id;
-static position_t sensor_position;
-static uint8_t sensor_status = 0; /* 0 = idle, 1 = active */
-static bool is_deployed = false;
-
-/* Energy tracking */
-static double total_energy_consumed = 0.0;
-static double baseline_energy = 0.0;
-static double sensing_energy = 0.0;
-static double processing_energy = 0.0;
-static double radio_energy = 0.0;
-static double active_energy = 0.0;
-static double idle_energy = 0.0;
-static clock_time_t energy_last_update = 0;
-
-/* Sensing parameters */
-static uint8_t sensing_range = SENSOR_PERCEPTION_RANGE;
-static uint8_t communication_range = WSN_DEPLOYMENT_CONF_COMM_RANGE;
-
-/* Energy parameters (typical values for sensor nodes) */
-static const double power_baseline = 0.003;     /* 3 mW baseline power */
-static const double power_processing = 0.020;   /* 20 mW processing power */
-static const double power_transmit = 0.050;     /* 50 mW transmit power */
-static const double power_receive = 0.030;      /* 30 mW receive power */
-static const double mu = 0.0005;                /* Energy coefficient for sensing */
-
-/* Timing parameters from paper */
-static const double interval_count = 10.0;      /* I_C */
-static const double cycle_time = 1.0;           /* T_C in seconds */
-static const double processing_time = 0.1;      /* T_P in seconds */
-
-/*---------------------------------------------------------------------------*/
-/* Calculate baseline energy consumption - E_baseline = (t_i - t_s) * P_baseline */
-double calculate_baseline_energy(double time_duration, double power_baseline)
-{
-    /* t_i = I_C * (T_C + T_P) */
-    double t_i = interval_count * (cycle_time + processing_time);
-    double t_s = 0; /* Start time, assuming 0 for simplicity */
-    
-    return (t_i - t_s) * power_baseline * time_duration;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate sensing energy consumption - E_sensing = μ * r_i^2 */
-double calculate_sensing_energy(double sensing_range)
-{
-    return mu * sensing_range * sensing_range;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate processing energy consumption - E_processing = P_processing * t_processing */
-double calculate_processing_energy(double power_processing, double time_processing)
-{
-    return power_processing * time_processing;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate radio energy consumption - E_radio = E_transmit + E_receive */
-double calculate_radio_energy(double power_transmit, double time_transmit, 
-                             double power_receive, double time_receive)
-{
-    double transmit_energy = power_transmit * time_transmit;
-    double receive_energy = power_receive * time_receive;
-    return transmit_energy + receive_energy;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate active mode energy as per paper:
-   E_active = E_baseline + E_sensing + E_processing + E_radio */
-static double calculate_active_energy(double baseline, double sensing, 
-                                    double processing, double radio)
-{
-    return baseline + sensing + processing + radio;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate idle mode energy as per paper:
-   E_idle = E_baseline + E_radio (reduced) */
-static double calculate_idle_energy(double baseline, double radio)
-{
-    return baseline + radio;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Update energy consumption based on current mode */
-static void update_energy_consumption(void)
-{
-    clock_time_t current_time = clock_time();
-    if (energy_last_update == 0) {
-        energy_last_update = current_time;
-        return;
-    }
-    
-    double time_duration = (double)(current_time - energy_last_update) / CLOCK_SECOND;
-    if (time_duration <= 0) return;
-    
-    /* Calculate baseline energy (always consumed) */
-    double baseline = calculate_baseline_energy(time_duration, power_baseline);
-    baseline_energy += baseline;
-    
-    if (sensor_status == 1) { /* Active mode */
-        LOG_INFO("Sensor_%d in ACTIVE mode\n", sensor_id);
+// Initialize sensor node
+void initialize_sensor_node(uint32_t sensor_id, coordinate_t position) {
+    if (sensor_count < 1000) {
+        sensor_registry[sensor_count] = (sensor_node_t){
+            .sensor_id = sensor_id,
+            .position = position,
+            .status = IDLE,
+            .battery_level = 100.0,
+            .is_active = 1
+        };
+        sensor_count++;
         
-        /* Sensing energy (only in active mode) */
-        double sensing = calculate_sensing_energy(sensing_range);
-        sensing_energy += sensing;
-        
-        /* Processing energy (more in active mode) */
-        double processing = calculate_processing_energy(power_processing, processing_time * time_duration);
-        processing_energy += processing;
-        
-        /* Radio energy (estimated based on activity) */
-        double radio = calculate_radio_energy(power_transmit, time_duration * 0.02, /* 2% tx time */
-                                            power_receive, time_duration * 0.05); /* 5% rx time */
-        radio_energy += radio;
-        
-        /* Calculate active mode energy using paper formula */
-        double active = calculate_active_energy(baseline, sensing, processing, radio);
-        active_energy += active;
-        total_energy_consumed += active;
-        
-    } else { /* Idle mode */
-        /* Only baseline and minimal radio energy in idle mode */
-        double radio = calculate_radio_energy(power_transmit, time_duration * 0.001, /* 0.1% tx time */
-                                            power_receive, time_duration * 0.02);  /* 2% rx time */
-        radio_energy += radio;
-        
-        /* Calculate idle mode energy using paper formula */
-        double idle = calculate_idle_energy(baseline, radio);
-        idle_energy += idle;
-        total_energy_consumed += idle;
-    }
-    
-    energy_last_update = current_time;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Calculate total energy consumption according to paper formula:
-   Energy_Tot = E_active + E_idle (for sensors) */
-static double calculate_total_sensor_energy(void)
-{
-    return active_energy + idle_energy;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Handle robot discovery message */
-static void handle_robot_discovery(const uip_ipaddr_t *sender_addr, 
-                                 robot_broadcast_msg_t *msg)
-{
-    LOG_INFO("Received Mp discovery message from Robot_%d\n", msg->robot_id);
-    
-    /* Calculate distance to robot (simplified approach) */
-    /* In real implementation, would use actual robot position */
-    
-    /* Send sensor reply message (Sensor_M) */
-    sensor_reply_msg_t reply;
-    reply.msg_type = WSN_MSG_TYPE_SENSOR_REPLY;
-    reply.sensor_id = sensor_id;
-    reply.x_coord = sensor_position.x;
-    reply.y_coord = sensor_position.y;
-    reply.sensor_status = sensor_status;
-    
-    simple_udp_sendto(&udp_conn, &reply, sizeof(reply), sender_addr);
-    
-    LOG_INFO("Sent Sensor_M reply to Robot_%d: Sensor_%d at (%d, %d), status: %s\n",
-             msg->robot_id, sensor_id, sensor_position.x, sensor_position.y,
-             sensor_status ? "active" : "idle");
-    
-    /* Update radio energy for transmission */
-    double tx_energy = power_transmit * 0.01; /* Estimate 10ms transmission */
-    radio_energy += tx_energy;
-    total_energy_consumed += tx_energy;
-}
-
-/*---------------------------------------------------------------------------*/
-/* Simulate sensor deployment by robot */
-static void simulate_deployment(position_t new_position) __attribute__((unused));
-static void simulate_deployment(position_t new_position)
-{
-    LOG_INFO("Sensor_%d being deployed to new position (%d, %d)\n",
-             sensor_id, new_position.x, new_position.y);
-    
-    sensor_position = new_position;
-    sensor_status = 1; /* Activate sensor */
-    is_deployed = true;
-    
-    LOG_INFO("Sensor_%d now ACTIVE at (%d, %d)\n", 
-             sensor_id, sensor_position.x, sensor_position.y);
-}
-
-/*---------------------------------------------------------------------------*/
-/* Simulate sensing operation */
-static void perform_sensing(void)
-{
-    if (sensor_status == 1) { /* Only active sensors perform sensing */
-        /* Simulate data capture and processing */
-        uint16_t sensor_data = random_rand() % 1024; /* Random sensor reading */
-        
-        LOG_INFO("Sensor_%d captured data: %d (range: %d m)\n", 
-                 sensor_id, sensor_data, sensing_range);
-        
-        /* Add sensing energy */
-        double sensing = calculate_sensing_energy(sensing_range);
-        sensing_energy += sensing;
-        
-        /* Add processing energy for data processing */
-        double processing = calculate_processing_energy(power_processing, 0.1); /* 100ms processing */
-        processing_energy += processing;
-        
-        /* Calculate active energy contribution */
-        double baseline = calculate_baseline_energy(0.1, power_baseline);
-        double radio = calculate_radio_energy(power_transmit, 0.01, power_receive, 0.01);
-        
-        double active = calculate_active_energy(baseline, sensing, processing, radio);
-        active_energy += active;
-        total_energy_consumed += active;
+        printf("Sensor_%u initialized at position (%.2f, %.2f)\n", 
+               sensor_id, position.x, position.y);
     }
 }
 
-/*---------------------------------------------------------------------------*/
-/* Print sensor statistics */
-static void print_sensor_statistics(void)
-{
-    /* Recalculate total energy using paper's formula */
-    total_energy_consumed = calculate_total_sensor_energy();
+// Handle robot broadcast message
+sensor_reply_message_t handle_robot_broadcast(robot_broadcast_message_t *broadcast) {
+    sensor_reply_message_t reply = {0};
     
-    LOG_INFO("=== SENSOR STATISTICS ===\n");
-    LOG_INFO("Sensor ID: %d\n", sensor_id);
-    LOG_INFO("Position: (%d, %d)\n", sensor_position.x, sensor_position.y);
-    LOG_INFO("Status: %s\n", sensor_status ? "ACTIVE" : "IDLE");
-    LOG_INFO("Sensing Range: %d m\n", sensing_range);
-    LOG_INFO("Communication Range: %d m\n", communication_range);
-    LOG_INFO("Deployed: %s\n", is_deployed ? "Yes" : "No");
-    LOG_INFO("Total Energy: %.6f J\n", total_energy_consumed);
-    
-    /* Energy breakdown */
-    LOG_INFO("Energy Breakdown:\n");
-    LOG_INFO("  Baseline: %.6f J (%.1f%%)\n", 
-             baseline_energy, (baseline_energy/total_energy_consumed)*100);
-    LOG_INFO("  Sensing: %.6f J (%.1f%%)\n", 
-             sensing_energy, (sensing_energy/total_energy_consumed)*100);
-    LOG_INFO("  Processing: %.6f J (%.1f%%)\n", 
-             processing_energy, (processing_energy/total_energy_consumed)*100);
-    LOG_INFO("  Radio: %.6f J (%.1f%%)\n", 
-             radio_energy, (radio_energy/total_energy_consumed)*100);
-    
-    /* Report by mode */
-    LOG_INFO("  Active Mode: %.6f J\n", active_energy);
-    LOG_INFO("  Idle Mode: %.6f J\n", idle_energy);
-    
-    /* Calculate theoretical values according to paper */
-    if (sensor_status == 1) {
-        LOG_INFO("Current mode: ACTIVE (E_active)\n");
-    } else {
-        LOG_INFO("Current mode: IDLE (E_idle)\n");
-    }
-}
-
-/*---------------------------------------------------------------------------*/
-/* UDP callback function */
-static void udp_rx_callback(struct simple_udp_connection *c,
-                           const uip_ipaddr_t *sender_addr,
-                           uint16_t sender_port,
-                           const uip_ipaddr_t *receiver_addr,
-                           uint16_t receiver_port,
-                           const uint8_t *data,
-                           uint16_t datalen)
-{
-    /* Handle robot discovery messages */
-    if (datalen == sizeof(robot_broadcast_msg_t)) {
-        robot_broadcast_msg_t *msg = (robot_broadcast_msg_t *)data;
-        
-        if (msg->msg_type == WSN_MSG_TYPE_ROBOT_BROADCAST) {
-            handle_robot_discovery(sender_addr, msg);
+    // Find this sensor in registry (simplified - in real implementation, 
+    // each sensor would know its own ID)
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        if (sensor_registry[i].is_active) {
+            // Simulate this sensor responding to broadcast
+            reply.sensor_id = sensor_registry[i].sensor_id;
+            reply.coord = sensor_registry[i].position;
+            reply.sensor_status = sensor_registry[i].status;
+            
+            printf("Sensor_%u responding to Robot_%u broadcast\n", 
+                   reply.sensor_id, broadcast->robot_id + 1);
+            printf("Sensor_%u position: (%.2f, %.2f), Status: %s\n", 
+                   reply.sensor_id, reply.coord.x, reply.coord.y,
+                   reply.sensor_status == IDLE ? "IDLE" : "ACTIVE");
+            
+            break;  // Simplified - return first active sensor
         }
     }
     
-    /* Handle deployment commands (if any) */
-    /* This could be extended to handle robot deployment commands */
+    return reply;
 }
 
-/*---------------------------------------------------------------------------*/
-/* Sensor Node Process Thread */
-PROCESS_THREAD(sensor_node_process, ev, data)
-{
-    static struct etimer energy_timer, sensing_timer, stats_timer;
-    
-    PROCESS_BEGIN();
-    
-    /* Initialize sensor */
-    sensor_id = node_id;
-    
-    /* Set initial position based on node ID (from log file) */
-    switch(sensor_id) {
-        case 4:
-            sensor_position.x = 912;
-            sensor_position.y = 556;
+// Update sensor status
+void update_sensor_status(uint32_t sensor_id, sensor_status_t new_status) {
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        if (sensor_registry[i].sensor_id == sensor_id) {
+            sensor_status_t old_status = sensor_registry[i].status;
+            sensor_registry[i].status = new_status;
+            
+            printf("Sensor_%u status updated: %s -> %s\n", 
+                   sensor_id,
+                   old_status == IDLE ? "IDLE" : "ACTIVE",
+                   new_status == IDLE ? "IDLE" : "ACTIVE");
             break;
-        case 6:
-            sensor_position.x = 377;
-            sensor_position.y = 929;
-            break;
-        case 7:
-            sensor_position.x = 720;
-            sensor_position.y = 476;
-            break;
-        case 8:
-            sensor_position.x = 277;
-            sensor_position.y = 483;
-            break;
-        case 11:
-            sensor_position.x = 609;
-            sensor_position.y = 123;
-            break;
-        default:
-            /* Random position for other sensors */
-            sensor_position.x = 100 + (random_rand() % 800);
-            sensor_position.y = 100 + (random_rand() % 800);
-            break;
+        }
     }
-    
-    energy_last_update = clock_time();
-    
-    LOG_INFO("Starting Sensor Node_%d\n", sensor_id);
-    LOG_INFO("Sensor_%d initial position: (%d, %d)\n", 
-             sensor_id, sensor_position.x, sensor_position.y);
-    LOG_INFO("Sensor range: %d m, Communication range: %d m\n", 
-             sensing_range, communication_range);
-    
-    /* Initialize UDP connection */
-    simple_udp_register(&udp_conn, UDP_CLIENT_PORT, NULL,
-                       UDP_SERVER_PORT, udp_rx_callback);
-    
-    /* Set up timers */
-    etimer_set(&energy_timer, 1 * CLOCK_SECOND);      /* Update energy every second */
-    etimer_set(&sensing_timer, 5 * CLOCK_SECOND);     /* Perform sensing every 5 seconds */
-    etimer_set(&stats_timer, 60 * CLOCK_SECOND);      /* Print stats every minute */
-    
-    while (1) {
-        PROCESS_WAIT_EVENT();
-        
-        if (ev == PROCESS_EVENT_TIMER) {
-            if (data == &energy_timer) {
-                /* Update energy consumption */
-                update_energy_consumption();
-                
-                /* Reset timer */
-                etimer_set(&energy_timer, 1 * CLOCK_SECOND);
-                
-            } else if (data == &sensing_timer) {
-                /* Perform sensing operation */
-                perform_sensing();
-                
-                /* Reset timer */
-                etimer_set(&sensing_timer, 5 * CLOCK_SECOND);
-                
-            } else if (data == &stats_timer) {
-                /* Print statistics */
-                print_sensor_statistics();
-                
-                /* Reset timer */
-                etimer_set(&stats_timer, 60 * CLOCK_SECOND);
+}
+
+// Relocate sensor to new position
+void relocate_sensor(uint32_t sensor_id, coordinate_t new_position) {
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        if (sensor_registry[i].sensor_id == sensor_id) {
+            coordinate_t old_position = sensor_registry[i].position;
+            sensor_registry[i].position = new_position;
+            
+            printf("Sensor_%u relocated: (%.2f, %.2f) -> (%.2f, %.2f)\n", 
+                   sensor_id, old_position.x, old_position.y,
+                   new_position.x, new_position.y);
+            break;
+        }
+    }
+}
+
+// Simulate sensor sensing within its range
+void sense_environment(uint32_t sensor_id) {
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        if (sensor_registry[i].sensor_id == sensor_id && 
+            sensor_registry[i].status == ACTIVE) {
+            
+            printf("Sensor_%u sensing environment at (%.2f, %.2f)\n", 
+                   sensor_id, sensor_registry[i].position.x, 
+                   sensor_registry[i].position.y);
+            
+            // Simulate battery consumption
+            sensor_registry[i].battery_level -= 0.1;
+            if (sensor_registry[i].battery_level <= 0) {
+                sensor_registry[i].is_active = 0;
+                printf("Sensor_%u battery depleted - sensor inactive\n", sensor_id);
             }
+            break;
+        }
+    }
+}
+
+// Check if sensor can detect an event at given position
+int can_detect_event(uint32_t sensor_id, coordinate_t event_position) {
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        if (sensor_registry[i].sensor_id == sensor_id && 
+            sensor_registry[i].status == ACTIVE &&
+            sensor_registry[i].is_active) {
+            
+            float distance = sqrt(pow(sensor_registry[i].position.x - event_position.x, 2) +
+                                pow(sensor_registry[i].position.y - event_position.y, 2));
+            
+            if (distance <= sensor_perception_range) {
+                printf("Sensor_%u detected event at (%.2f, %.2f)\n", 
+                       sensor_id, event_position.x, event_position.y);
+                return 1;
+            }
+            break;
+        }
+    }
+    return 0;
+}
+
+// Get sensor information
+sensor_db_record_t get_sensor_info(uint32_t sensor_id) {
+    sensor_db_record_t info = {0};
+    
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        if (sensor_registry[i].sensor_id == sensor_id) {
+            info.sensor_id = sensor_registry[i].sensor_id;
+            info.coord = sensor_registry[i].position;
+            info.sensor_status = sensor_registry[i].status;
+            break;
         }
     }
     
-    PROCESS_END();
+    return info;
 }
-/*---------------------------------------------------------------------------*/
+
+// Display all sensor states
+void display_sensor_states() {
+    printf("\n=== Sensor Node States ===\n");
+    printf("ID\tPosition\t\tStatus\tBattery\tActive\n");
+    
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        printf("%u\t(%.2f, %.2f)\t%s\t%.1f%%\t%s\n", 
+               sensor_registry[i].sensor_id,
+               sensor_registry[i].position.x,
+               sensor_registry[i].position.y,
+               sensor_registry[i].status == IDLE ? "IDLE" : "ACTIVE",
+               sensor_registry[i].battery_level,
+               sensor_registry[i].is_active ? "YES" : "NO");
+    }
+}
+
+// Simulate random sensor deployment in target area
+void deploy_random_sensors(uint32_t num_sensors, float area_size) {
+    printf("Deploying %u sensors randomly in %.2fx%.2f area\n", 
+           num_sensors, area_size, area_size);
+    
+    srand(42);  // Fixed seed for reproducible results
+    
+    for (uint32_t i = 0; i < num_sensors && sensor_count < 1000; i++) {
+        coordinate_t pos;
+        pos.x = ((float)rand() / RAND_MAX) * area_size;
+        pos.y = ((float)rand() / RAND_MAX) * area_size;
+        
+        initialize_sensor_node(i + 1, pos);
+    }
+}
+
+// Calculate coverage area of all active sensors
+float calculate_total_coverage_area() {
+    float total_area = 0.0;
+    float sensor_coverage_area = M_PI * sensor_perception_range * sensor_perception_range;
+    
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        if (sensor_registry[i].status == ACTIVE && sensor_registry[i].is_active) {
+            total_area += sensor_coverage_area;
+        }
+    }
+    
+    printf("Total coverage area: %.2f square units\n", total_area);
+    return total_area;
+}
+
+// Simulate sensor network operation
+void simulate_sensor_network() {
+    printf("\n=== Simulating Sensor Network Operation ===\n");
+    
+    // Simulate some sensing operations
+    for (uint32_t i = 0; i < sensor_count && i < 5; i++) {
+        if (sensor_registry[i].status == ACTIVE) {
+            sense_environment(sensor_registry[i].sensor_id);
+        }
+    }
+    
+    // Simulate event detection
+    coordinate_t event_pos = {100.0, 150.0};
+    printf("\nEvent occurred at (%.2f, %.2f)\n", event_pos.x, event_pos.y);
+    
+    int detected = 0;
+    for (uint32_t i = 0; i < sensor_count; i++) {
+        if (can_detect_event(sensor_registry[i].sensor_id, event_pos)) {
+            detected = 1;
+        }
+    }
+    
+    if (!detected) {
+        printf("No sensors detected the event - coverage gap identified\n");
+    }
+}
+
+// Main function for testing sensor node functionality
+int main() {
+    printf("=== WSN Deployment Sensor Nodes ===\n");
+    
+    // Deploy random sensors
+    deploy_random_sensors(20, target_area_size);
+    
+    // Display initial sensor states
+    display_sensor_states();
+    
+    // Calculate initial coverage
+    calculate_total_coverage_area();
+    
+    // Simulate network operation
+    simulate_sensor_network();
+    
+    // Simulate robot interaction
+    printf("\n=== Simulating Robot-Sensor Interaction ===\n");
+    robot_broadcast_message_t broadcast = {ROBOT_1};
+    
+    for (uint32_t i = 0; i < 3 && i < sensor_count; i++) {
+        sensor_reply_message_t reply = handle_robot_broadcast(&broadcast);
+        if (reply.sensor_id > 0) {
+            // Simulate robot collecting/relocating sensor
+            update_sensor_status(reply.sensor_id, ACTIVE);
+            coordinate_t new_pos = {200.0 + i * 10, 200.0 + i * 10};
+            relocate_sensor(reply.sensor_id, new_pos);
+        }
+    }
+    
+    // Display final sensor states
+    printf("\n=== Final Sensor States ===\n");
+    display_sensor_states();
+    
+    return 0;
+}
